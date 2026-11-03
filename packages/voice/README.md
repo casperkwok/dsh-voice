@@ -14,6 +14,13 @@ dsh plugin --profile web add /path/to/dsh-voice/packages/voice
 - `~/.cache/dsh-voice/models`
 - 仓库根目录 `.models`（开发态）
 
+也可以从仓库根目录下载：
+
+```bash
+node scripts/install-models.mjs                 # ASR + VAD + Matcha
+node scripts/install-models.mjs --with-kokoro   # 追加 Kokoro 英文回退
+```
+
 需要的目录：
 
 ```
