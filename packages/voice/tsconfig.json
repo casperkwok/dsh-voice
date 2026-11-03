@@ -3,7 +3,14 @@
   "compilerOptions": {
     "outDir": "lib",
     "rootDir": "src",
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src/index.ts", "src/host/**/*.ts", "src/shared/**/*.ts"]
+  "include": [
+    "src/index.ts",
+    "src/ambient.d.ts",
+    "src/host/**/*.ts",
+    "src/shared/**/*.ts"
+  ]
 }

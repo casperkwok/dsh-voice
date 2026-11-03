@@ -18,14 +18,65 @@ export interface VoicePartialFrame {
   text: string
 }
 
+export interface VoiceFinalFrame {
+  type: 'final'
+  text: string
+}
+
 export interface VoiceAudioFrame {
   type: 'audio'
-  /** base64 PCM/MP3 chunk */
+  /** base64 PCM16 little-endian */
   audio: string
-  mime: string
+  /** model-native sample rate; the client resamples with WebAudio */
+  sampleRate: number
   sentenceId: number
   chunkId: number
   final: boolean
 }
 
-export type VoiceFrame = VoiceStatusFrame | VoicePartialFrame | VoiceAudioFrame
+export interface VoiceBargeInFrame {
+  type: 'barge-in'
+}
+
+export interface VoiceMetricsFrame {
+  type: 'metrics'
+  turnId: number
+  ttsFirstChunkMs: number | null
+  lastSpeechToFirstChunkMs: number | null
+  vadEndpointDelayMs: number | null
+}
+
+export interface VoiceErrorFrame {
+  type: 'error'
+  code: string
+  message: string
+}
+
+export interface VoiceConfigFrame {
+  type: 'config'
+  provider: string
+  sampleRate: number
+  inputSampleRate: 16000
+  frameSamples: 320
+}
+
+export type VoiceServerFrame =
+  | VoiceStatusFrame
+  | VoicePartialFrame
+  | VoiceFinalFrame
+  | VoiceAudioFrame
+  | VoiceBargeInFrame
+  | VoiceMetricsFrame
+  | VoiceErrorFrame
+  | VoiceConfigFrame
+
+export interface VoiceStartMessage {
+  type: 'start'
+  sessionId: string
+}
+
+export interface VoiceStopMessage {
+  type: 'stop'
+}
+
+export type VoiceClientMessage = VoiceStartMessage | VoiceStopMessage
