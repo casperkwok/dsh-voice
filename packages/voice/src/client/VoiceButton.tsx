@@ -114,12 +114,9 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement {
       setBusy(false)
     } catch (err) {
       console.warn('[dsh-voice] start failed', err)
-      setVoiceState({
-        active: false,
-        status: 'idle',
-        error: err instanceof Error ? err.message : '语音启动失败',
-      })
+      const message = err instanceof Error ? err.message : '语音启动失败'
       stop()
+      setVoiceState({ error: message })
     }
   }
 
