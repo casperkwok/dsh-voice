@@ -90,6 +90,9 @@ function handleMessage(msg) {
           : `检测到打断，停止播放（开口到停止 ${Math.round(performance.now() - bargeSpeechStartAt)}ms）`,
       )
       break
+    case 'error':
+      log(`错误：${msg.message}`)
+      break
     case 'metrics':
       $('m-first').textContent = msg.ttsFirstChunkMs == null ? '—' : `${msg.ttsFirstChunkMs} ms`
       const perceived = msg.lastSpeechToFirstChunkMs ?? msg.endpointToFirstChunkMs

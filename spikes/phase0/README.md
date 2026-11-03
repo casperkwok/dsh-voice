@@ -9,9 +9,23 @@
 ```
 .models/
 ├── sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/
-├── sherpa-onnx-vits-zh-ll/
+├── matcha-icefall-zh-en/                 # 默认 TTS，中文
+├── kokoro-int8-multi-lang-v1_1/          # 英文段回退；也可整体切换
+├── sherpa-onnx-vits-zh-ll/               # 旧兜底 TTS
 └── silero_vad.onnx
 ```
+
+`matcha-icefall-zh-en/` 需要 `model-steps-3.onnx`、`vocos-16khz-univ.onnx`、`tokens.txt`、`lexicon.txt`。`kokoro-int8-multi-lang-v1_1/` 需要 `model.int8.onnx`、`voices.bin`、`tokens.txt`、`lexicon-us-en.txt`、`lexicon-zh.txt`。
+
+默认选择顺序是 Matcha → Kokoro → VITS。只要 Matcha 可用，中文走 Matcha；文本里出现拉丁字母时，该段走 Kokoro。环境变量：
+
+```bash
+TTS_PROVIDER=matcha|kokoro|vits   # 强制指定主 TTS
+TTS_SID=47                        # Kokoro 音色：45–48 女声，49–52 男声
+TTS_THREADS=4                     # TTS 线程数
+```
+
+音色对比文件在 `spikes/phase0/voices/`：`compare-all.wav` 依次是 VITS sid 0、VITS sid 2、Matcha、Kokoro 47、Kokoro 48、Kokoro 49。
 
 安装依赖：
 

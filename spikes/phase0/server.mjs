@@ -29,6 +29,8 @@ const { WebSocketServer } = require('ws')
 
 const ASR_DIR = join(MODELS, 'sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20')
 const TTS_DIR = join(MODELS, 'sherpa-onnx-vits-zh-ll')
+const MATCHA_DIR = join(MODELS, 'matcha-icefall-zh-en')
+const KOKORO_DIR = join(MODELS, 'kokoro-int8-multi-lang-v1_1')
 const VAD_MODEL = join(MODELS, 'silero_vad.onnx')
 
 for (const p of [ASR_DIR, TTS_DIR, VAD_MODEL]) {
@@ -86,7 +88,61 @@ function createVad() {
   )
 }
 
-function createTts() {
+const TTS_THREADS = Number(process.env.TTS_THREADS ?? 4)
+const KOKORO_SID = Number(process.env.TTS_SID ?? 47)
+
+let ttsProvider = 'vits'
+let ttsSid = 0
+let ttsLatin = null
+
+function createMatcha() {
+  if (
+    !existsSync(join(MATCHA_DIR, 'model-steps-3.onnx')) ||
+    !existsSync(join(MATCHA_DIR, 'vocos-16khz-univ.onnx'))
+  ) {
+    return null
+  }
+  return new sherpa.OfflineTts({
+    model: {
+      matcha: {
+        acousticModel: join(MATCHA_DIR, 'model-steps-3.onnx'),
+        vocoder: join(MATCHA_DIR, 'vocos-16khz-univ.onnx'),
+        tokens: join(MATCHA_DIR, 'tokens.txt'),
+        lexicon: join(MATCHA_DIR, 'lexicon.txt'),
+      },
+      debug: 0,
+      numThreads: TTS_THREADS,
+      provider: 'cpu',
+    },
+    maxNumSentences: 1,
+  })
+}
+
+function createKokoro() {
+  if (
+    !existsSync(join(KOKORO_DIR, 'model.int8.onnx')) ||
+    !existsSync(join(KOKORO_DIR, 'voices.bin')) ||
+    !existsSync(join(KOKORO_DIR, 'lexicon-zh.txt'))
+  ) {
+    return null
+  }
+  return new sherpa.OfflineTts({
+    model: {
+      kokoro: {
+        model: join(KOKORO_DIR, 'model.int8.onnx'),
+        voices: join(KOKORO_DIR, 'voices.bin'),
+        tokens: join(KOKORO_DIR, 'tokens.txt'),
+        lexicon: `${join(KOKORO_DIR, 'lexicon-us-en.txt')},${join(KOKORO_DIR, 'lexicon-zh.txt')}`,
+      },
+      debug: 0,
+      numThreads: TTS_THREADS,
+      provider: 'cpu',
+    },
+    maxNumSentences: 1,
+  })
+}
+
+function createVits() {
   const ruleFsts = ['date.fst', 'phone.fst', 'number.fst']
     .map((f) => join(TTS_DIR, f))
     .filter(existsSync)
@@ -99,12 +155,34 @@ function createTts() {
         lexicon: join(TTS_DIR, 'lexicon.txt'),
       },
       debug: 0,
-      numThreads: Number(process.env.TTS_THREADS ?? 4),
+      numThreads: TTS_THREADS,
       provider: 'cpu',
     },
     maxNumSentences: 1,
     ...(ruleFsts ? { ruleFsts } : {}),
   })
+}
+
+function createTts() {
+  const requested = process.env.TTS_PROVIDER
+  const matcha = requested === 'vits' ? null : createMatcha()
+  const kokoro = requested === 'vits' || requested === 'matcha' ? null : createKokoro()
+
+  let primary = null
+  if (requested === 'vits') primary = createVits()
+  else if (requested === 'kokoro') primary = kokoro
+  else if (requested === 'matcha') primary = matcha
+  else primary = matcha ?? kokoro ?? createVits()
+
+  if (!primary) primary = createVits()
+
+  ttsProvider = primary === matcha ? 'matcha' : primary === kokoro ? 'kokoro' : 'vits'
+  ttsSid = ttsProvider === 'kokoro' ? KOKORO_SID : 0
+
+  // Chinese uses the fast Matcha voice; any segment with Latin letters uses
+  // Kokoro, which has the English lexicon Matcha lacks.
+  ttsLatin = primary !== kokoro && requested !== 'vits' ? (kokoro ?? createKokoro()) : null
+  return primary
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -133,11 +211,20 @@ function splitForTts(text, maxLen = 18) {
 console.log('[init] loading TTS / ASR / VAD')
 const tts = createTts()
 const recognizer = createRecognizer()
-console.log('[init] warming TTS')
+console.log(
+  `[init] warming TTS provider=${ttsProvider} sid=${ttsSid} sampleRate=${tts.sampleRate}` +
+    (ttsLatin ? ` latin=kokoro sid=${KOKORO_SID}` : ''),
+)
 tts.generate({
   text: '你好，我是语音助手。',
-  generationConfig: new sherpa.GenerationConfig({ sid: 0, speed: 1.0, silenceScale: 0.2 }),
+  generationConfig: new sherpa.GenerationConfig({ sid: ttsSid, speed: 1.0, silenceScale: 0.2 }),
 })
+if (ttsLatin) {
+  ttsLatin.generate({
+    text: 'Hello, this is a test.',
+    generationConfig: new sherpa.GenerationConfig({ sid: KOKORO_SID, speed: 1.0, silenceScale: 0.2 }),
+  })
+}
 console.log('[init] ready')
 
 const MIME = {
@@ -223,9 +310,8 @@ wss.on('connection', (ws) => {
 
     let firstChunkAt = null
     let lastChunkAt = null
-    let lastChunkSamples = 0
-    let totalSamples = 0
-    let sampleRate = 0
+    let lastChunkDurationMs = 0
+    let totalDurationMs = 0
     let metricsSent = false
 
     const sendMetrics = () => {
@@ -247,7 +333,7 @@ wss.on('connection', (ws) => {
       })
     }
 
-    const sendChunk = (samples, final) => {
+    const sendChunk = (samples, rate, final) => {
       const int16 = new Int16Array(samples.length)
       for (let i = 0; i < samples.length; i += 1) {
         int16[i] = Math.max(-1, Math.min(1, samples[i])) * 32767
@@ -255,43 +341,50 @@ wss.on('connection', (ws) => {
       send({
         type: 'audio',
         turnId: turn,
-        sampleRate,
+        sampleRate: rate,
         audio: Buffer.from(int16.buffer, int16.byteOffset, int16.byteLength).toString('base64'),
         final,
       })
     }
 
-    const takeChunk = (samples) => {
-      if (!samples.length) return
+    const takeChunk = (samples, rate) => {
+      if (!samples.length || !rate) return
       const now = performance.now()
-      if (firstChunkAt === null) {
-        firstChunkAt = now
-        sampleRate = tts.sampleRate
-      }
+      if (firstChunkAt === null) firstChunkAt = now
+      const durationMs = (samples.length / rate) * 1000
       lastChunkAt = now
-      lastChunkSamples = samples.length
-      totalSamples += samples.length
-      sendChunk(samples, false)
+      lastChunkDurationMs = durationMs
+      totalDurationMs += durationMs
+      sendChunk(samples, rate, false)
       sendMetrics()
     }
 
     for (const segment of splitForTts(text)) {
       if (myEpoch !== ttsEpoch) return
+      const engine = ttsLatin && /[A-Za-z]/.test(segment) ? ttsLatin : tts
+      const sid = engine === ttsLatin ? KOKORO_SID : ttsSid
+      const rate = engine.sampleRate
       let callbackSawChunk = false
-      const audio = await tts.generateAsync({
-        text: segment,
-        generationConfig: new sherpa.GenerationConfig({ sid: 0, speed: 1.0, silenceScale: 0.2 }),
-        onProgress: ({ samples }) => {
-          if (myEpoch !== ttsEpoch) return 0
-          callbackSawChunk = true
-          takeChunk(samples)
-          return 1
-        },
-      })
+      let audio = null
+      try {
+        audio = await engine.generateAsync({
+          text: segment,
+          generationConfig: new sherpa.GenerationConfig({ sid, speed: 1.0, silenceScale: 0.2 }),
+          onProgress: ({ samples }) => {
+            if (myEpoch !== ttsEpoch) return 0
+            callbackSawChunk = true
+            takeChunk(samples, rate)
+            return 1
+          },
+        })
+      } catch (err) {
+        console.error('[tts] segment failed:', JSON.stringify(segment), err.message)
+        send({ type: 'error', message: '本地语音合成失败' })
+        continue
+      }
       if (myEpoch !== ttsEpoch) return
-      if (!callbackSawChunk) {
-        sampleRate = audio.sampleRate
-        takeChunk(audio.samples)
+      if (!callbackSawChunk && audio) {
+        takeChunk(audio.samples, audio.sampleRate)
       }
     }
 
@@ -299,8 +392,8 @@ wss.on('connection', (ws) => {
 
     if (firstChunkAt !== null) {
       const playbackEnd = Math.max(
-        firstChunkAt + (totalSamples / sampleRate) * 1000,
-        lastChunkAt + (lastChunkSamples / sampleRate) * 1000,
+        firstChunkAt + totalDurationMs,
+        lastChunkAt + lastChunkDurationMs,
       )
       while (performance.now() < playbackEnd) {
         if (myEpoch !== ttsEpoch) return
@@ -322,6 +415,10 @@ wss.on('connection', (ws) => {
           resetAsr()
           resetVad()
           send({ type: 'status', state: 'idle' })
+        }
+        if (msg.type === 'say' && typeof msg.text === 'string') {
+          const turn = ++turnId
+          await speak(msg.text, turn, null, null)
         }
       } catch {
         // ignore malformed control messages

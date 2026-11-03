@@ -116,7 +116,7 @@ C4Context
 |---|---|---|
 | 真全双工 | 浏览器 AEC + 残余回声门限 + Host 侧 VAD + 打断帧回灌 | ADR-04 |
 | 低延迟识别 | `sherpa-onnx-node` 流式 zipformer2，Host 本地推理 | ADR-02 |
-| 低延迟合成 | 按句合成、下一句预合成、VITS/Kokoro 模型常驻 | ADR-03 |
+| 低延迟合成 | 按句合成、下一句预合成、Matcha/Kokoro 模型常驻 | ADR-03 |
 | 多会话隔离 | 每个 Session 一个 `VoiceSession`，不共享可变状态 | ADR-05 |
 | 本地隐私 | 音频只在 Host 与浏览器之间传输，不落盘、不出机器 | ADR-03、ADR-08 |
 | DSH 集成 | Cordis 插件 + Host/Client 分层 + Slot | ADR-01 |
@@ -201,7 +201,7 @@ dsh-voice/
 │       │   │   ├── tts/
 │       │   │   │   ├── tts-service.ts  # provider 注册与轮次队列
 │       │   │   │   ├── tts-provider.ts # 统一接口
-│       │   │   │   ├── sherpa-tts.ts   # VITS/Kokoro
+│       │   │   │   ├── sherpa-tts.ts   # Matcha / Kokoro / VITS
 │       │   │   │   ├── segmenter.ts    # 按句切、剥代码块
 │       │   │   │   └── pronunciation.ts# 代码词发音词典
 │       │   │   ├── models/
@@ -668,7 +668,7 @@ Host 用 `sherpa-onnx-node` 的 Silero VAD。帧长 32ms，静音确认帧数按
 
 ### 9.4 本地 TTS
 
-`sherpa-onnx-node` 加载 VITS/Kokoro 模型。VITS-zh-ll 输出 16k 单声道 PCM；`synthesize(text)` 返回模型原生采样率，客户端按消息里的 `sampleRate` 建 `AudioBuffer`，由 WebAudio 重采样到设备采样率。推理线程数为 4。一轮一个 TTS 队列：
+`sherpa-onnx-node` 加载 Matcha、Kokoro 与 VITS 三套模型。默认中文走 Matcha（3 步 ODE + Vocos，16k），含拉丁字母的段走 Kokoro（24k），两者都缺失时回退 VITS（16k）。`synthesize(text)` 返回模型原生采样率，客户端按消息里的 `sampleRate` 建 `AudioBuffer`，由 WebAudio 重采样到设备采样率。推理线程数为 4。一轮一个 TTS 队列：
 
 1. LLM 每输出一句，`speech-planner` 剥离 Markdown、代码块、表格、链接。
 2. `segmenter` 按 `。！？；：` 切句，再按逗号切成长度不超过 20 个汉字的段；首段优先不超过 6 个汉字，保证首帧 ≤ 300ms。
@@ -856,9 +856,9 @@ Windows 与 macOS 的单元测试在发版前手工跑；真实设备矩阵见 `
 
 在真全双工需求下，面对「播放期持续识别、低延迟、本地处理」的关注点，我们选择 `sherpa-onnx-node 2.0.1` 的流式 zipformer2，而非 DSH 内置的录音后 SenseVoice 或云端 ASR，为了首 partial ≤ 500ms 与本地隐私，代价是原生模块的三平台打包与模型体积。
 
-### ADR-03 · 本地 TTS 使用 sherpa-onnx VITS/Kokoro
+### ADR-03 · 本地 TTS 使用 Matcha 主、Kokoro 英文回退
 
-在本地隐私与低延迟需求下，面对「首帧 ≤ 300ms、无需云端」的关注点，我们选择 `sherpa-onnx-node` 的 VITS/Kokoro，而非 Edge 云端或 CosyVoice Python 服务，为了一个原生运行时同时覆盖 ASR/VAD/TTS，代价是音色表现力上限较低；CosyVoice 作为后续可选 provider。
+在本地隐私与低延迟需求下，面对「首帧 ≤ 300ms、中英文混合、无需云端」的关注点，我们选择 `sherpa-onnx-node` 的 Matcha-icefall-zh-en 作为中文主 TTS、Kokoro 作为含拉丁字母段落的回退、VITS 作为兜底，而非 Edge 云端或 CosyVoice Python 服务，为了一个原生运行时同时覆盖 ASR/VAD/TTS，且首帧实测 p90 81ms；代价是同时加载两套模型，混合语言句子会在段边界切换音色，音色表现力仍低于云端。
 
 ### ADR-04 · 浏览器 AEC + NLMS 残余回声抑制
 
@@ -887,7 +887,7 @@ Windows 与 macOS 的单元测试在发版前手工跑；真实设备矩阵见 `
 | 项 | 为什么现在这么做 | 什么时候还 | 影响 |
 |---|---|---|---|
 | 原生 `sherpa-onnx-node` 三平台打包 | 先用官方预编译包，减少自建编译 | DSH 打包支持原生模块时 | Windows/Linux 安装失败 |
-| VITS/Kokoro 音色表现力 | 先保证本地与低延迟 | v0.2 接 CosyVoice provider | 音色不如云端 |
+| Matcha/Kokoro 音色表现力 | 先保证本地与低延迟 | v0.2 接 CosyVoice provider | 音色不如云端 |
 | 浏览器 AEC 差异 | 先覆盖耳机，外放降级 | 设备矩阵跑完后 | 外放误打断 |
 | DSH API 0.2.x 变化 | 适配层集中在 `host/dsh/` | 每次 DSH 升版 | 插件加载失败 |
 | 无真实设备 CI | 先做手工矩阵 | 有第二台机器后 | 回归发现晚 |
