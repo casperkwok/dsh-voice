@@ -337,7 +337,7 @@ wss.on('connection', (ws) => {
     if (!speaking && vad.isDetected() && rms(f32) > 0.008) lastVoiceAt = performance.now()
 
     if (speaking) {
-      if (vad.isDetected()) {
+      if (vad.isDetected() && rms(f32) > 0.02) {
         speechFrames += 1
         if (speechFrames >= 3) bargeIn()
       } else {
