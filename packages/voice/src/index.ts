@@ -11,7 +11,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { VoiceEngine } from './host/voice-engine.ts'
 import { VoiceSession } from './host/voice-session.ts'
-import { VOICE_DEFAULTS, type VoiceSettings } from './shared/settings.ts'
+import { loadSettings, saveSettings, settingsPath } from './host/settings-store.ts'
+import type { VoiceSettings } from './shared/settings.ts'
 
 export const name = 'dsh-voice'
 export const inject = ['webServer', 'agents']
@@ -20,13 +21,7 @@ const BASE_PATH = '/voice'
 
 export function apply(ctx: Context): void {
   const c = ctx as any
-  const settings: VoiceSettings = {
-    ...VOICE_DEFAULTS,
-    modelsDir: process.env.DSH_VOICE_MODELS ?? '',
-    ttsSid: Number(process.env.DSH_VOICE_TTS_SID ?? VOICE_DEFAULTS.ttsSid),
-    ttsThreads: Number(process.env.DSH_VOICE_TTS_THREADS ?? VOICE_DEFAULTS.ttsThreads),
-    silenceMs: Number(process.env.DSH_VOICE_SILENCE_MS ?? VOICE_DEFAULTS.silenceMs),
-  }
+  const settings: VoiceSettings = loadSettings()
   const engine = new VoiceEngine(settings)
   const sessionsByAgent = new Map<string, VoiceSession>()
   const wss = new WebSocketServer({ noServer: true })
@@ -34,6 +29,13 @@ export function apply(ctx: Context): void {
   const json = (res: ServerResponse, status: number, body: unknown): void => {
     res.writeHead(status, { 'content-type': 'application/json' })
     res.end(JSON.stringify(body))
+  }
+
+  const readJson = async (req: IncomingMessage): Promise<unknown> => {
+    const chunks: Buffer[] = []
+    for await (const chunk of req) chunks.push(Buffer.from(chunk))
+    if (!chunks.length) return {}
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
   }
 
   const sendToAgent = (sessionId: string, text: string, ws: WebSocket): void => {
@@ -96,6 +98,35 @@ export function apply(ctx: Context): void {
           ready: engine.ready,
           provider: engine.provider,
           sessions: [...sessionsByAgent.keys()],
+        })
+      },
+    }),
+  )
+
+  c.effect(() =>
+    c.webServer.register({
+      kind: 'exact',
+      path: `${BASE_PATH}/settings`,
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method === 'POST') {
+          try {
+            const saved = saveSettings(await readJson(req))
+            json(res, 200, {
+              ok: true,
+              settings: saved,
+              settingsPath: settingsPath(),
+              restartRequired: true,
+            })
+          } catch (err) {
+            json(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) })
+          }
+          return
+        }
+        json(res, 200, {
+          settings: loadSettings(),
+          settingsPath: settingsPath(),
+          effectiveProvider: engine.provider,
+          ready: engine.ready,
         })
       },
     }),

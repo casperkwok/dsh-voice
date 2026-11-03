@@ -1,5 +1,6 @@
 import { VoiceButton } from './VoiceButton.tsx'
 import { VoiceDock } from './VoiceDock.tsx'
+import { SettingsCard } from './SettingsCard.tsx'
 
 export const inject = ['slots']
 
@@ -25,6 +26,20 @@ export function apply(ctx: any): void {
         inject: () => ({}),
       },
       VoiceDock,
+    ),
+  )
+
+  ctx.slots.inject('settings.plugin.item', () =>
+    ctx.slots.register(
+      { name: 'settings.plugin.item', id: 'dsh-voice', key: 'dsh-voice', order: 100, label: () => '语音' },
+      SettingsCard,
+    ),
+  )
+
+  ctx.slots.inject('settings.section', () =>
+    ctx.slots.register(
+      { name: 'settings.section', id: 'dsh-voice', order: 100, label: () => '语音' },
+      SettingsCard,
     ),
   )
 }

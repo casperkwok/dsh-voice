@@ -137,9 +137,21 @@ export class VoiceEngine {
         60,
       )
 
-    this.primary = this.createMatcha() ?? this.createKokoro() ?? this.createVits()
+    switch (this.settings.ttsProvider) {
+      case 'matcha':
+        this.primary = this.createMatcha() ?? this.createKokoro() ?? this.createVits()
+        break
+      case 'kokoro':
+        this.primary = this.createKokoro() ?? this.createVits()
+        break
+      case 'vits':
+        this.primary = this.createVits()
+        break
+      default:
+        this.primary = this.createMatcha() ?? this.createKokoro() ?? this.createVits()
+    }
     if (!this.primary) throw new Error(`no usable TTS model in ${this.modelsDir}`)
-    if (this.primary.provider !== 'kokoro') {
+    if (this.primary.provider === 'matcha') {
       this.latin = this.createKokoro()
     }
     this.primary.tts.generate({
