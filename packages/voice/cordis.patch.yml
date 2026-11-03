@@ -1,0 +1,5 @@
+# dsh-voice bundle: host voice engine + client voice UI.
+# Insert one plugin entry; the host/client split is declared in package.json.
+- insert:
+    - id: dsh-voice
+      name: '@dsh-voice/voice'

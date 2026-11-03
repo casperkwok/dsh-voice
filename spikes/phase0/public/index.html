@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DSH Voice · Phase 0</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0b0d12;
+        --panel: #141821;
+        --text: #e7ecf3;
+        --muted: #8b95a7;
+        --accent: #6ee7b7;
+        --warn: #fbbf24;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      main { max-width: 820px; margin: 0 auto; padding: 32px 20px 64px; }
+      h1 { font-size: 22px; margin: 0 0 6px; }
+      p.sub { color: var(--muted); margin: 0 0 24px; font-size: 13px; }
+      .row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+      button {
+        border: 1px solid #2a3140; background: #1b2130; color: var(--text);
+        padding: 9px 14px; border-radius: 8px; font-size: 14px; cursor: pointer;
+      }
+      button.primary { background: var(--accent); color: #052e22; border-color: transparent; font-weight: 700; }
+      button:disabled { opacity: 0.45; cursor: not-allowed; }
+      .panel {
+        background: var(--panel); border: 1px solid #232a38; border-radius: 12px;
+        padding: 16px; margin-bottom: 14px;
+      }
+      .label { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+      .value { font-size: 15px; line-height: 1.55; min-height: 22px; word-break: break-word; }
+      .status { color: var(--accent); font-weight: 700; }
+      .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+      .metric { background: #0f131b; border-radius: 8px; padding: 10px; }
+      .metric b { display: block; font-size: 18px; }
+      .log {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+        color: var(--muted); white-space: pre-wrap; max-height: 220px; overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>DSH Voice · Phase 0</h1>
+      <p class="sub">本地流式 ASR + 本地 TTS + 真打断。没有 DSH UI，只验证音频处理流程和延迟。</p>
+
+      <div class="row">
+        <button id="start" class="primary">开始</button>
+        <button id="stop" disabled>停止</button>
+        <button id="barge">模拟打断</button>
+      </div>
+
+      <div class="panel">
+        <div class="label">状态</div>
+        <div id="status" class="value status">未开始</div>
+      </div>
+
+      <div class="panel">
+        <div class="label">实时转写</div>
+        <div id="partial" class="value">—</div>
+      </div>
+
+      <div class="panel">
+        <div class="label">最终文本</div>
+        <div id="final" class="value">—</div>
+      </div>
+
+      <div class="panel">
+        <div class="label">本轮指标</div>
+        <div class="metrics">
+          <div class="metric"><span class="label">TTS 首块</span><b id="m-first">—</b></div>
+          <div class="metric"><span class="label">说完到首声</span><b id="m-end">—</b></div>
+          <div class="metric"><span class="label">轮次</span><b id="m-turn">—</b></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="label">日志</div>
+        <div id="log" class="log"></div>
+      </div>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
