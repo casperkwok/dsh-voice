@@ -353,6 +353,14 @@ function normalizeChineseNumbers(text: string): string {
       const mm = Number(minute)
       return `${h}点${mm < 10 ? '零' : ''}${intToChinese(mm)}分`
     })
+    .replace(/(\d{1,2})\s*点\s*(\d{1,2})\s*分/g, (_m, hour: string, minute: string) => {
+      const mm = Number(minute)
+      return `${intToChinese(Number(hour))}点${mm < 10 ? '零' : ''}${intToChinese(mm)}分`
+    })
+    .replace(/(\d{1,2})\s+(\d{1,2})\s*分/g, (_m, hour: string, minute: string) => {
+      const mm = Number(minute)
+      return `${intToChinese(Number(hour))}点${mm < 10 ? '零' : ''}${intToChinese(mm)}分`
+    })
     .replace(/(\d{1,2})\s*月/g, (_m, month: string) => `${intToChinese(Number(month))}月`)
     .replace(/(\d{1,2})\s*日/g, (_m, day: string) => `${intToChinese(Number(day))}日`)
     .replace(/(\d+(?:\.\d+)?)\s*%/g, (_m, n: string) => `百分之${numberToChinese(n)}`)
