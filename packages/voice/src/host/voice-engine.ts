@@ -206,9 +206,12 @@ export class VoiceEngine {
   }
 
   private createKokoro(): TtsHandle | null {
-    const dir = join(this.modelsDir, 'kokoro-int8-multi-lang-v1_1')
+    const fp32 = join(this.modelsDir, 'kokoro-multi-lang-v1_1')
+    const int8 = join(this.modelsDir, 'kokoro-int8-multi-lang-v1_1')
+    const dir = existsSync(join(fp32, 'model.onnx')) ? fp32 : int8
+    const model = dir === fp32 ? 'model.onnx' : 'model.int8.onnx'
     if (
-      !existsSync(join(dir, 'model.int8.onnx')) ||
+      !existsSync(join(dir, model)) ||
       !existsSync(join(dir, 'voices.bin')) ||
       !existsSync(join(dir, 'lexicon-zh.txt'))
     ) {
@@ -217,7 +220,7 @@ export class VoiceEngine {
     const tts = new sherpa.OfflineTts({
       model: {
         kokoro: {
-          model: join(dir, 'model.int8.onnx'),
+          model: join(dir, model),
           voices: join(dir, 'voices.bin'),
           tokens: join(dir, 'tokens.txt'),
           lexicon: `${join(dir, 'lexicon-us-en.txt')},${join(dir, 'lexicon-zh.txt')}`,
