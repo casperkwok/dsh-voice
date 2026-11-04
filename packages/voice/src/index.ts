@@ -299,9 +299,15 @@ export function apply(ctx: Context): void {
         next: () => Promise<'allowed-once' | 'rejected' | 'cancelled' | 'unavailable'>,
       ) => {
         const session = sessionsByAgent.get(request.agent.id)
-        if (!session) return next()
+        if (!session) {
+          if (process.env.DSH_VOICE_DEBUG) {
+            console.log('[dsh-voice] approval without voice session', request.agent.id)
+          }
+          return next()
+        }
         return session.requestApproval(request)
       },
+      { prepend: true },
     ),
   )
 
