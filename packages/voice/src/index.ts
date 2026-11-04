@@ -12,17 +12,39 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import { VoiceEngine } from './host/voice-engine.ts'
 import { VoiceSession } from './host/voice-session.ts'
 import { loadSettings, saveSettings, settingsPath } from './host/settings-store.ts'
-import type { VoiceSettings } from './shared/settings.ts'
+import { publicSettings, type VoiceSettings } from './shared/settings.ts'
 
 export const name = 'dsh-voice'
 export const inject = ['webServer', 'agents']
 
 const BASE_PATH = '/voice'
 
+function encodeWav(samples: Float32Array, sampleRate: number): Buffer {
+  const data = Buffer.alloc(44 + samples.length * 2)
+  data.write('RIFF', 0)
+  data.writeUInt32LE(36 + samples.length * 2, 4)
+  data.write('WAVE', 8)
+  data.write('fmt ', 12)
+  data.writeUInt32LE(16, 16)
+  data.writeUInt16LE(1, 20)
+  data.writeUInt16LE(1, 22)
+  data.writeUInt32LE(sampleRate, 24)
+  data.writeUInt32LE(sampleRate * 2, 28)
+  data.writeUInt16LE(2, 32)
+  data.writeUInt16LE(16, 34)
+  data.write('data', 36)
+  data.writeUInt32LE(samples.length * 2, 40)
+  for (let i = 0; i < samples.length; i += 1) {
+    const value = Math.max(-1, Math.min(1, samples[i]!))
+    data.writeInt16LE(Math.round(value * 32767), 44 + i * 2)
+  }
+  return data
+}
+
 export function apply(ctx: Context): void {
   const c = ctx as any
-  const settings: VoiceSettings = loadSettings()
-  const engine = new VoiceEngine(settings)
+  let currentSettings: VoiceSettings = loadSettings()
+  const engine = new VoiceEngine(currentSettings)
   const sessionsByAgent = new Map<string, VoiceSession>()
   const wss = new WebSocketServer({ noServer: true })
 
@@ -109,25 +131,57 @@ export function apply(ctx: Context): void {
       path: `${BASE_PATH}/settings`,
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         if (req.method === 'POST') {
+          const before = loadSettings()
+          let saved: VoiceSettings | null = null
           try {
-            const saved = saveSettings(await readJson(req))
+            saved = saveSettings(await readJson(req))
+            await engine.updateSettings(saved)
+            currentSettings = saved
             json(res, 200, {
               ok: true,
-              settings: saved,
+              settings: publicSettings(saved),
               settingsPath: settingsPath(),
-              restartRequired: true,
+              restartRequired: false,
             })
           } catch (err) {
+            if (saved) saveSettings(before)
             json(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) })
           }
           return
         }
         json(res, 200, {
-          settings: loadSettings(),
+          settings: publicSettings(loadSettings()),
           settingsPath: settingsPath(),
           effectiveProvider: engine.provider,
           ready: engine.ready,
         })
+      },
+    }),
+  )
+
+  c.effect(() =>
+    c.webServer.register({
+      kind: 'exact',
+      path: `${BASE_PATH}/preview`,
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method !== 'POST') {
+          json(res, 405, { ok: false, error: 'POST only' })
+          return
+        }
+        try {
+          const body = (await readJson(req)) as { text?: string }
+          const text = (body.text ?? '').trim().slice(0, 200)
+          if (!text) throw new Error('试听文本为空')
+          const audio = await engine.preview(text)
+          if (!audio.samples.length) throw new Error('没有生成音频')
+          json(res, 200, {
+            ok: true,
+            sampleRate: audio.sampleRate,
+            audio: encodeWav(audio.samples, audio.sampleRate).toString('base64'),
+          })
+        } catch (err) {
+          json(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) })
+        }
       },
     }),
   )
@@ -164,7 +218,7 @@ export function apply(ctx: Context): void {
           session?.destroy()
           session = new VoiceSession({
             engine,
-            settings,
+            settings: currentSettings,
             sessionId,
             send: (frame) => send(frame),
             onFinal: (text) => {

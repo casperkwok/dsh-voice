@@ -4,6 +4,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { VoiceSettings } from '../shared/settings.ts'
+import { MiniMaxTts } from './tts/minimax.ts'
 
 const require = createRequire(import.meta.url)
 
@@ -50,13 +51,14 @@ function resolveModelsDir(settings: VoiceSettings): string {
 }
 
 export class VoiceEngine {
-  private readonly modelsDir: string
-  private readonly settings: VoiceSettings
+  private modelsDir: string
+  private settings: VoiceSettings
   private readyPromise: Promise<void> | null = null
   recognizer: any = null
   vadFactory: (() => any) | null = null
   primary: TtsHandle | null = null
   latin: TtsHandle | null = null
+  cloud: MiniMaxTts | null = null
   thinkingCue: { samples: Float32Array; sampleRate: number } | null = null
   error: string | null = null
 
@@ -66,15 +68,15 @@ export class VoiceEngine {
   }
 
   get provider(): string {
-    return this.primary?.provider ?? 'none'
+    return this.cloud?.provider ?? this.primary?.provider ?? 'none'
   }
 
   get sampleRate(): number {
-    return this.primary?.sampleRate ?? 16000
+    return this.cloud?.sampleRate ?? this.primary?.sampleRate ?? 16000
   }
 
   get ready(): boolean {
-    return this.primary !== null && this.recognizer !== null
+    return this.recognizer !== null && (this.cloud !== null || this.primary !== null)
   }
 
   async init(): Promise<void> {
@@ -138,6 +140,23 @@ export class VoiceEngine {
         60,
       )
 
+    await this.loadTts()
+  }
+
+  private async loadTts(): Promise<void> {
+    this.primary = null
+    this.latin = null
+    this.cloud = null
+    this.thinkingCue = null
+
+    if (this.settings.ttsMode === 'cloud') {
+      if (this.settings.cloudProvider !== 'minimax') {
+        throw new Error(`cloud TTS provider "${this.settings.cloudProvider}" 尚未接入`)
+      }
+      this.cloud = new MiniMaxTts(this.settings)
+      return
+    }
+
     switch (this.settings.ttsProvider) {
       case 'matcha':
         this.primary = this.createMatcha() ?? this.createKokoro() ?? this.createVits()
@@ -159,7 +178,7 @@ export class VoiceEngine {
       text: '你好。',
       generationConfig: new sherpa.GenerationConfig({
         sid: this.primary.sid,
-        speed: 1.0,
+        speed: this.settings.ttsSpeed,
         silenceScale: 0.2,
       }),
     })
@@ -168,7 +187,7 @@ export class VoiceEngine {
         text: '我正在思考。',
         generationConfig: new sherpa.GenerationConfig({
           sid: this.primary.sid,
-          speed: 1.0,
+          speed: this.settings.ttsSpeed,
           silenceScale: 0.2,
         }),
       })
@@ -178,6 +197,13 @@ export class VoiceEngine {
     } catch (err) {
       console.warn('[dsh-voice] thinking cue unavailable', err)
     }
+  }
+
+  async updateSettings(next: VoiceSettings): Promise<void> {
+    this.settings = next
+    this.modelsDir = resolveModelsDir(next)
+    this.error = null
+    await this.loadTts()
   }
 
   private createMatcha(): TtsHandle | null {
@@ -268,6 +294,9 @@ export class VoiceEngine {
     shouldContinue: () => boolean,
   ): Promise<boolean> {
     await this.init()
+    if (this.cloud) {
+      return this.cloud.synthesize(text, onChunk, shouldContinue)
+    }
     const engine = this.latin && /[A-Za-z]/.test(text) ? this.latin : this.primary
     if (!engine) return false
     let sawChunk = false
@@ -276,7 +305,7 @@ export class VoiceEngine {
         text,
         generationConfig: new sherpa.GenerationConfig({
           sid: engine.sid,
-          speed: 1.0,
+          speed: this.settings.ttsSpeed,
           silenceScale: 0.2,
         }),
         onProgress: ({ samples }: { samples: Float32Array }) => {
@@ -295,6 +324,43 @@ export class VoiceEngine {
       console.warn('[dsh-voice] TTS segment failed', JSON.stringify(text), err)
       return false
     }
+  }
+
+  /** Synthesize one short sample for the settings page. */
+  async preview(text: string): Promise<AudioChunk> {
+    await this.init()
+    if (this.cloud) {
+      const chunks: AudioChunk[] = []
+      let sampleRate = this.cloud.sampleRate
+      await this.cloud.synthesize(
+        text,
+        (chunk) => {
+          chunks.push(chunk)
+          sampleRate = chunk.sampleRate
+        },
+        () => true,
+      )
+      const length = chunks.reduce((n, chunk) => n + chunk.samples.length, 0)
+      const samples = new Float32Array(length)
+      let offset = 0
+      for (const chunk of chunks) {
+        samples.set(chunk.samples, offset)
+        offset += chunk.samples.length
+      }
+      return { samples, sampleRate }
+    }
+
+    const engine = this.primary
+    if (!engine) throw new Error('本地 TTS 不可用')
+    const audio = engine.tts.generate({
+      text,
+      generationConfig: new sherpa.GenerationConfig({
+        sid: engine.sid,
+        speed: this.settings.ttsSpeed,
+        silenceScale: 0.2,
+      }),
+    })
+    return { samples: audio.samples, sampleRate: audio.sampleRate }
   }
 }
 
