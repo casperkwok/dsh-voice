@@ -48,9 +48,7 @@ export function VoiceDock({ sessionId }: VoiceDockProps): ReactElement | null {
   const color = COLORS[ui.status] ?? '#6ee7b7'
   const caption =
     ui.error ??
-    (ui.status === 'speaking' || ui.status === 'thinking'
-      ? ui.caption
-      : ui.partial || ui.final)
+    (ui.status === 'speaking' ? ui.caption : ui.status === 'listening' ? ui.partial : '')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '2px 0 8px' }}>
@@ -59,13 +57,10 @@ export function VoiceDock({ sessionId }: VoiceDockProps): ReactElement | null {
       {caption ? (
         <div
           style={{
-            maxWidth: 620,
-            padding: '6px 12px',
-            borderRadius: 14,
-            background: 'rgba(255,255,255,.055)',
-            border: '1px solid rgba(255,255,255,.07)',
-            color: ui.error ? '#fca5a5' : 'rgba(240,244,250,.9)',
-            fontSize: 13,
+            maxWidth: 520,
+            padding: '0 12px',
+            color: ui.error ? '#fca5a5' : 'rgba(240,244,250,.72)',
+            fontSize: 12.5,
             lineHeight: 1.45,
             textAlign: 'center',
             display: '-webkit-box',
@@ -82,40 +77,38 @@ export function VoiceDock({ sessionId }: VoiceDockProps): ReactElement | null {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
-          width: 'min(560px, 100%)',
-          height: 54,
-          padding: '0 8px 0 10px',
-          borderRadius: 27,
-          background: 'rgba(18,21,28,.94)',
-          border: '1px solid rgba(255,255,255,.1)',
-          boxShadow: '0 10px 36px rgba(0,0,0,.32)',
+          gap: 6,
+          width: 'min(460px, 100%)',
+          height: 50,
+          padding: '0 7px 0 7px',
+          borderRadius: 25,
+          background: 'rgba(18,21,28,.86)',
+          border: '1px solid rgba(255,255,255,.07)',
+          boxShadow: '0 8px 28px rgba(0,0,0,.24)',
           backdropFilter: 'blur(18px)',
         }}
       >
         <button
           type="button"
           title="退出语音，改用打字"
+          aria-label="打字"
           onClick={() => {
             voiceControl.stop?.()
             focusComposer()
           }}
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            height: 34,
-            padding: '0 9px',
-            borderRadius: 17,
+            display: 'inline-grid',
+            placeItems: 'center',
+            width: 36,
+            height: 36,
+            borderRadius: 18,
             border: 'none',
             background: 'transparent',
-            color: 'rgba(235,240,248,.72)',
+            color: 'rgba(235,240,248,.62)',
             cursor: 'pointer',
-            fontSize: 12,
           }}
         >
           <KeyboardIcon size={15} />
-          打字
         </button>
 
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, minWidth: 0 }}>
