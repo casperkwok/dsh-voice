@@ -142,16 +142,30 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement {
         lineHeight: 1,
       }}
     >
-      <span
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: '50%',
-          background: active ? '#6ee7b7' : 'currentColor',
-          opacity: active ? 1 : 0.55,
-          boxShadow: active ? '0 0 0 3px rgba(110,231,183,.16)' : 'none',
-        }}
-      />
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        aria-hidden="true"
+        style={{ flex: '0 0 auto', opacity: active ? 1 : 0.72 }}
+      >
+        <rect
+          x="9"
+          y="3"
+          width="6"
+          height="11"
+          rx="3"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        />
+        <path
+          d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+        />
+      </svg>
       {active ? '语音中' : '语音'}
     </button>
   )
