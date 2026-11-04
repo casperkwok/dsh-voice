@@ -62,6 +62,7 @@ export class VoiceEngine {
   latin: TtsHandle | null = null
   cloud: MiniMaxTts | VolcTts | DashScopeTts | null = null
   thinkingCue: { samples: Float32Array; sampleRate: number } | null = null
+  private thinkingCuePromise: Promise<{ samples: Float32Array; sampleRate: number } | null> | null = null
   error: string | null = null
 
   constructor(settings: VoiceSettings) {
@@ -150,6 +151,7 @@ export class VoiceEngine {
     this.latin = null
     this.cloud = null
     this.thinkingCue = null
+    this.thinkingCuePromise = null
 
     if (this.settings.ttsMode === 'cloud') {
       if (this.settings.cloudProvider === 'minimax') {
@@ -214,6 +216,42 @@ export class VoiceEngine {
     this.modelsDir = resolveModelsDir(next)
     this.error = null
     await this.loadTts()
+  }
+
+  /** Cached thinking cue. Cloud providers generate it lazily on first use. */
+  async getThinkingCue(): Promise<{ samples: Float32Array; sampleRate: number } | null> {
+    if (this.thinkingCue) return this.thinkingCue
+    if (!this.cloud) return null
+    if (!this.thinkingCuePromise) {
+      this.thinkingCuePromise = (async () => {
+        try {
+          const chunks: AudioChunk[] = []
+          let sampleRate = this.cloud!.sampleRate
+          await this.cloud!.synthesize(
+            '我正在思考。',
+            (chunk) => {
+              chunks.push(chunk)
+              sampleRate = chunk.sampleRate
+            },
+            () => true,
+          )
+          const length = chunks.reduce((n, chunk) => n + chunk.samples.length, 0)
+          if (!length) return null
+          const samples = new Float32Array(length)
+          let offset = 0
+          for (const chunk of chunks) {
+            samples.set(chunk.samples, offset)
+            offset += chunk.samples.length
+          }
+          this.thinkingCue = { samples, sampleRate }
+          return this.thinkingCue
+        } catch (err) {
+          console.warn('[dsh-voice] cloud thinking cue failed', err)
+          return null
+        }
+      })()
+    }
+    return this.thinkingCuePromise
   }
 
   private createMatcha(): TtsHandle | null {

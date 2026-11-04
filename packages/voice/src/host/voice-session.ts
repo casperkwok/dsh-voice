@@ -236,19 +236,23 @@ export class VoiceSession {
     this.clearThinkingCue()
     this.thinkingTimer = setTimeout(() => {
       this.thinkingTimer = null
-      if (this.destroyed || this.speaking || this.muted) return
-      const cue = this.engine.thinkingCue
-      if (!cue) return
-      this.send({ type: 'caption', text: '正在思考…' })
-      this.send({
-        type: 'audio',
-        audio: floatToBase64(cue.samples),
-        sampleRate: cue.sampleRate,
-        sentenceId: 0,
-        chunkId: 0,
-        final: true,
-      })
+      void this.emitThinkingCue()
     }, 600)
+  }
+
+  private async emitThinkingCue(): Promise<void> {
+    if (this.destroyed || this.speaking || this.muted || this.assistantActive) return
+    const cue = await this.engine.getThinkingCue()
+    if (!cue || this.destroyed || this.speaking || this.muted || this.assistantActive) return
+    this.send({ type: 'caption', text: '正在思考…' })
+    this.send({
+      type: 'audio',
+      audio: floatToBase64(cue.samples),
+      sampleRate: cue.sampleRate,
+      sentenceId: 0,
+      chunkId: 0,
+      final: true,
+    })
   }
 
   private clearThinkingCue(): void {
