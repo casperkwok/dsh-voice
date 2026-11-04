@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react'
+import type { CSSProperties, ReactElement } from 'react'
 import { useVoiceState } from './store.ts'
 import { voiceControl } from './control.ts'
 import { KeyboardIcon, MicIcon, StopIcon } from './icons.tsx'
@@ -18,18 +18,22 @@ const LABELS: Record<string, string> = {
 const COLORS: Record<string, string> = {
   listening: '#6ee7b7',
   thinking: '#fbbf24',
-  speaking: '#93c5fd',
+  speaking: '#bfdbfe',
   interrupted: '#fca5a5',
 }
 
-const DOCK_CSS = `
-@keyframes dshv-orb {
-  0%, 100% { transform: scale(.82); opacity: .65; }
-  50% { transform: scale(1); opacity: 1; }
+const CSS = `
+@keyframes dshv-breathe {
+  0%, 100% { transform: scale(.97); }
+  50% { transform: scale(1.03); }
 }
-@keyframes dshv-halo {
-  0%, 100% { transform: scale(.9); opacity: .18; }
-  50% { transform: scale(1.35); opacity: .04; }
+@keyframes dshv-bar {
+  0%, 100% { transform: scaleY(.35); opacity: .55; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+@keyframes dshv-ring {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 `
 
@@ -38,6 +42,55 @@ function focusComposer(): void {
     const el = document.querySelector<HTMLElement>('textarea, [contenteditable="true"]')
     el?.focus()
   })
+}
+
+function CircleButton({
+  title,
+  onClick,
+  children,
+  primary = false,
+  danger = false,
+}: {
+  title: string
+  onClick: () => void
+  children: ReactElement
+  primary?: boolean
+  danger?: boolean
+}): ReactElement {
+  const style: CSSProperties = primary
+    ? {
+        width: 38,
+        height: 38,
+        border: 'none',
+        background: '#3b82f6',
+        color: '#fff',
+        boxShadow: '0 4px 16px rgba(59,130,246,.35)',
+      }
+    : {
+        width: 34,
+        height: 34,
+        border: '1px solid rgba(255,255,255,.1)',
+        background: danger ? 'rgba(248,113,113,.16)' : 'rgba(255,255,255,.055)',
+        color: danger ? '#fca5a5' : 'rgba(235,240,248,.82)',
+      }
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      style={{
+        display: 'inline-grid',
+        placeItems: 'center',
+        padding: 0,
+        borderRadius: '50%',
+        cursor: 'pointer',
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  )
 }
 
 export function VoiceDock({ sessionId }: VoiceDockProps): ReactElement | null {
@@ -51,15 +104,23 @@ export function VoiceDock({ sessionId }: VoiceDockProps): ReactElement | null {
     (ui.status === 'speaking' ? ui.caption : ui.status === 'listening' ? ui.partial : '')
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '2px 0 8px' }}>
-      <style>{DOCK_CSS}</style>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 7,
+        padding: '2px 0 10px',
+      }}
+    >
+      <style>{CSS}</style>
 
       {caption ? (
         <div
           style={{
             maxWidth: 520,
             padding: '0 12px',
-            color: ui.error ? '#fca5a5' : 'rgba(240,244,250,.72)',
+            color: ui.error ? '#fca5a5' : 'rgba(240,244,250,.68)',
             fontSize: 12.5,
             lineHeight: 1.45,
             textAlign: 'center',
@@ -75,108 +136,89 @@ export function VoiceDock({ sessionId }: VoiceDockProps): ReactElement | null {
 
       <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          width: 'min(460px, 100%)',
-          height: 50,
-          padding: '0 7px 0 7px',
-          borderRadius: 25,
-          background: 'rgba(18,21,28,.86)',
-          border: '1px solid rgba(255,255,255,.07)',
-          boxShadow: '0 8px 28px rgba(0,0,0,.24)',
-          backdropFilter: 'blur(18px)',
+          position: 'relative',
+          width: 74,
+          height: 74,
+          display: 'grid',
+          placeItems: 'center',
+          filter: ui.muted ? 'grayscale(.7) opacity(.65)' : undefined,
         }}
       >
-        <button
-          type="button"
+        <div
+          style={{
+            position: 'absolute',
+            inset: -6,
+            borderRadius: '50%',
+            border: `1.5px solid ${color}`,
+            opacity: 0.35,
+            animation: ui.status === 'thinking' ? 'dshv-ring 3.2s linear infinite' : undefined,
+            borderTopColor: 'transparent',
+            borderLeftColor: 'transparent',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            clipPath: 'circle(50%)',
+            overflow: 'hidden',
+            background:
+              'radial-gradient(circle at 32% 26%, #dbeafe 0%, #60a5fa 34%, #2563eb 68%, rgba(37,99,235,.35) 100%)',
+            boxShadow: `0 0 30px ${color}33, inset 0 0 20px rgba(255,255,255,.18)`,
+            animation: 'dshv-breathe 2.2s ease-in-out infinite',
+          }}
+        />
+        <span
+          aria-hidden="true"
+          style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3, height: 24 }}
+        >
+          {[0, 1, 2, 3, 4].map((i) => (
+            <span
+              key={i}
+              style={{
+                width: 2.5,
+                height: 20,
+                borderRadius: 2,
+                background: 'rgba(255,255,255,.9)',
+                transformOrigin: 'center',
+                animation: `dshv-bar ${ui.status === 'thinking' ? 1.6 : 0.9}s ease-in-out ${i * 0.1}s infinite`,
+              }}
+            />
+          ))}
+        </span>
+      </div>
+
+      <span
+        style={{
+          fontSize: 11.5,
+          letterSpacing: '.06em',
+          color: ui.error ? '#fca5a5' : 'rgba(235,240,248,.5)',
+        }}
+      >
+        {ui.error ? '语音不可用' : (LABELS[ui.status] ?? ui.status)}
+      </span>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 1 }}>
+        <CircleButton
           title="退出语音，改用打字"
-          aria-label="打字"
           onClick={() => {
             voiceControl.stop?.()
             focusComposer()
           }}
-          style={{
-            display: 'inline-grid',
-            placeItems: 'center',
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            border: 'none',
-            background: 'transparent',
-            color: 'rgba(235,240,248,.62)',
-            cursor: 'pointer',
-          }}
         >
           <KeyboardIcon size={15} />
-        </button>
-
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, minWidth: 0 }}>
-          <span style={{ position: 'relative', display: 'inline-grid', placeItems: 'center', width: 28, height: 28 }}>
-            <span
-              style={{
-                position: 'absolute',
-                inset: 0,
-                borderRadius: '50%',
-                background: color,
-                animation: 'dshv-halo 2.4s ease-in-out infinite',
-              }}
-            />
-            <span
-              style={{
-                width: 16,
-                height: 16,
-                borderRadius: '50%',
-                background: color,
-                boxShadow: `0 0 14px ${color}`,
-                animation: 'dshv-orb 1.8s ease-in-out infinite',
-              }}
-            />
-          </span>
-          <span style={{ fontSize: 12, color: 'rgba(235,240,248,.62)', whiteSpace: 'nowrap' }}>
-            {LABELS[ui.status] ?? ui.status}
-          </span>
-        </div>
-
-        <button
-          type="button"
+        </CircleButton>
+        <CircleButton
           title={ui.muted ? '取消静音' : '静音'}
+          danger={ui.muted}
           onClick={() => voiceControl.toggleMute?.()}
-          style={{
-            display: 'inline-grid',
-            placeItems: 'center',
-            width: 34,
-            height: 34,
-            borderRadius: '50%',
-            border: '1px solid rgba(255,255,255,.1)',
-            background: ui.muted ? 'rgba(248,113,113,.16)' : 'rgba(255,255,255,.06)',
-            color: ui.muted ? '#fca5a5' : 'rgba(235,240,248,.86)',
-            cursor: 'pointer',
-          }}
         >
           <MicIcon size={16} muted={ui.muted} />
-        </button>
-
-        <button
-          type="button"
-          title="结束语音"
-          aria-label="结束语音"
-          onClick={() => voiceControl.stop?.()}
-          style={{
-            display: 'inline-grid',
-            placeItems: 'center',
-            width: 38,
-            height: 38,
-            borderRadius: '50%',
-            border: 'none',
-            background: '#3b82f6',
-            color: '#fff',
-            cursor: 'pointer',
-            boxShadow: '0 4px 16px rgba(59,130,246,.35)',
-          }}
-        >
+        </CircleButton>
+        <CircleButton title="结束语音" primary onClick={() => voiceControl.stop?.()}>
           <StopIcon size={16} />
-        </button>
+        </CircleButton>
       </div>
     </div>
   )

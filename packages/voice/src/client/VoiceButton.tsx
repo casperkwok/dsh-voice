@@ -11,7 +11,7 @@ interface VoiceButtonProps {
   sessionId?: string
 }
 
-export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement {
+export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement | null {
   const ui = useVoiceState()
   const [busy, setBusy] = useState(false)
   const ctxRef = useRef<AudioContext | null>(null)
@@ -162,6 +162,8 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [ui.active, sessionId, busy])
+
+  if (ui.active) return null
 
   const shortcut = navigator.userAgent.includes('Mac') ? '⌘⇧V' : 'Ctrl+Shift+V'
   return (
