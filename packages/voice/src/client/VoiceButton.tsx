@@ -51,6 +51,7 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement | nul
       sessionId: null,
       muted: false,
       level: 0,
+      approval: null,
     })
   }
 
@@ -89,6 +90,7 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement | nul
       error: null,
       muted: false,
       level: 0,
+      approval: null,
     })
 
     try {
@@ -122,6 +124,15 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement | nul
           setVoiceState({ final: message.text, partial: '', caption: '' })
         } else if (message.type === 'caption') {
           setVoiceState({ caption: message.text })
+        } else if (message.type === 'approval') {
+          setVoiceState({
+            approval: { toolName: message.toolName, reason: message.reason, prompt: message.prompt },
+          })
+        } else if (message.type === 'approval-resolved') {
+          setVoiceState({
+            approval: null,
+            caption: message.decision === 'allowed' ? '已允许' : '已拒绝',
+          })
         } else if (message.type === 'audio') {
           playback.play(message.audio, message.sampleRate)
         } else if (message.type === 'barge-in') {

@@ -39,6 +39,18 @@ export interface VoiceCaptionFrame {
   text: string
 }
 
+export interface VoiceApprovalFrame {
+  type: 'approval'
+  toolName: string
+  reason?: string
+  prompt: string
+}
+
+export interface VoiceApprovalResolvedFrame {
+  type: 'approval-resolved'
+  decision: 'allowed' | 'rejected'
+}
+
 export interface VoiceBargeInFrame {
   type: 'barge-in'
 }
@@ -71,6 +83,8 @@ export type VoiceServerFrame =
   | VoiceFinalFrame
   | VoiceAudioFrame
   | VoiceCaptionFrame
+  | VoiceApprovalFrame
+  | VoiceApprovalResolvedFrame
   | VoiceBargeInFrame
   | VoiceMetricsFrame
   | VoiceErrorFrame

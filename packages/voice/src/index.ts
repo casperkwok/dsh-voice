@@ -222,6 +222,7 @@ export function apply(ctx: Context): void {
             sessionId,
             send: (frame) => send(frame),
             onFinal: (text) => {
+              if (session?.resolveApproval(text)) return
               if (sessionId) sendToAgent(sessionId, text, ws)
             },
           })
@@ -288,6 +289,20 @@ export function apply(ctx: Context): void {
       session?.pushAssistantText('\n语音回复中断。\n')
       session?.endAssistant()
     }),
+  )
+
+  c.effect(() =>
+    c.on(
+      'approval/request',
+      (
+        request: { agent: { id: string }; toolName: string; reason?: string; signal?: AbortSignal },
+        next: () => Promise<'allowed-once' | 'rejected' | 'cancelled' | 'unavailable'>,
+      ) => {
+        const session = sessionsByAgent.get(request.agent.id)
+        if (!session) return next()
+        return session.requestApproval(request)
+      },
+    ),
   )
 
   c.effect(() => () => {

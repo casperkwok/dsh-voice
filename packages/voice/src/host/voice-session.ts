@@ -1,7 +1,7 @@
 import type { VoiceSettings } from '../shared/settings.ts'
 import type { VoiceServerFrame } from '../shared/protocol.ts'
 import { pcmRms, splitForTts, type VoiceEngine } from './voice-engine.ts'
-import { incompleteDelay, isDuplicateFinal } from './eou.ts'
+import { approvalIntent, incompleteDelay, isDuplicateFinal } from './eou.ts'
 import { normalizeChineseNumbers, stripForSpeech } from './normalize.ts'
 
 interface VoiceSessionOptions {
@@ -52,6 +52,10 @@ export class VoiceSession {
     endpointAt: number
   } | null = null
   private thinkingTimer: ReturnType<typeof setTimeout> | null = null
+  private pendingApproval: {
+    resolve: (outcome: 'allowed-once' | 'rejected' | 'cancelled' | 'unavailable') => void
+    timer: ReturnType<typeof setTimeout>
+  } | null = null
 
   constructor(options: VoiceSessionOptions) {
     this.engine = options.engine
@@ -169,13 +173,63 @@ export class VoiceSession {
     this.lastTurnVoiceAt = voiceAt
     this.lastEndpointDelayMs =
       voiceAt === null ? null : Math.round(endpointAt - voiceAt)
+    const handlingApproval = this.pendingApproval !== null
     this.send({ type: 'final', text })
-    this.send({ type: 'status', state: 'thinking', sessionId: this.sessionId })
-    this.send({ type: 'caption', text: '正在思考…' })
+    if (!handlingApproval) {
+      this.send({ type: 'status', state: 'thinking', sessionId: this.sessionId })
+      this.send({ type: 'caption', text: '正在思考…' })
+    }
     this.resetAsr()
     this.resetVad()
     this.onFinal(text)
-    this.scheduleThinkingCue()
+    if (!handlingApproval) this.scheduleThinkingCue()
+  }
+
+  requestApproval(request: {
+    toolName: string
+    reason?: string
+    signal?: AbortSignal
+  }): Promise<'allowed-once' | 'rejected' | 'cancelled' | 'unavailable'> {
+    if (this.pendingApproval) return Promise.resolve('unavailable')
+    const prompt = `有一个操作需要你授权：${request.toolName}。说“允许”或“拒绝”。`
+    this.send({
+      type: 'approval',
+      toolName: request.toolName,
+      reason: request.reason,
+      prompt,
+    })
+    this.enqueueSpeech(prompt)
+    return new Promise((resolve) => {
+      const settle = (outcome: 'allowed-once' | 'rejected' | 'cancelled' | 'unavailable'): void => {
+        if (!this.pendingApproval) return
+        clearTimeout(this.pendingApproval.timer)
+        this.pendingApproval = null
+        resolve(outcome)
+      }
+      const timer = setTimeout(() => settle('unavailable'), 60000)
+      this.pendingApproval = { resolve: settle, timer }
+      request.signal?.addEventListener('abort', () => settle('cancelled'), { once: true })
+    })
+  }
+
+  /** Returns true when the utterance was consumed by a pending approval. */
+  resolveApproval(text: string): boolean {
+    if (!this.pendingApproval) return false
+    const intent = approvalIntent(text)
+    if (intent === 'allowed') {
+      this.send({ type: 'approval-resolved', decision: 'allowed' })
+      this.pendingApproval.resolve('allowed-once')
+      this.enqueueSpeech('已允许。')
+      return true
+    }
+    if (intent === 'rejected') {
+      this.send({ type: 'approval-resolved', decision: 'rejected' })
+      this.pendingApproval.resolve('rejected')
+      this.enqueueSpeech('已拒绝。')
+      return true
+    }
+    this.enqueueSpeech('请说“允许”或“拒绝”。')
+    return true
   }
 
   private scheduleThinkingCue(): void {
@@ -367,6 +421,7 @@ export class VoiceSession {
   destroy(): void {
     this.destroyed = true
     this.clearThinkingCue()
+    if (this.pendingApproval) this.pendingApproval.resolve('cancelled')
     this.ttsEpoch += 1
     this.speechGeneration += 1
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { incompleteDelay, isDuplicateFinal } from '../../src/host/eou.ts'
+import { approvalIntent, incompleteDelay, isDuplicateFinal } from '../../src/host/eou.ts'
 
 describe('incompleteDelay', () => {
   it('extends after a connector', () => {
@@ -23,6 +23,16 @@ describe('incompleteDelay', () => {
     expect(incompleteDelay('现在可以出发了吗')).toBe(0)
     expect(incompleteDelay('我们明天再聊')).toBe(0)
     expect(incompleteDelay('')).toBe(0)
+  })
+})
+
+describe('approvalIntent', () => {
+  it('recognizes allow and reject phrases', () => {
+    expect(approvalIntent('允许')).toBe('allowed')
+    expect(approvalIntent('可以，批准')).toBe('allowed')
+    expect(approvalIntent('拒绝')).toBe('rejected')
+    expect(approvalIntent('不行，不要')).toBe('rejected')
+    expect(approvalIntent('这个是什么')).toBe('unknown')
   })
 })
 

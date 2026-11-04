@@ -1,3 +1,10 @@
+export function approvalIntent(text: string): 'allowed' | 'rejected' | 'unknown' {
+  const value = text.replace(/\s+/g, '')
+  if (/(拒绝|不行|不可以|不要|不允许|取消|no|deny|reject)/i.test(value)) return 'rejected'
+  if (/(允许|批准|同意|可以|确认|好的|行|approve|yes|ok)/i.test(value)) return 'allowed'
+  return 'unknown'
+}
+
 /** PRD REQ-04: identical text inside two seconds is sent once. */
 export function isDuplicateFinal(
   previousText: string,
