@@ -34,6 +34,11 @@ export interface VoiceAudioFrame {
   final: boolean
 }
 
+export interface VoiceCaptionFrame {
+  type: 'caption'
+  text: string
+}
+
 export interface VoiceBargeInFrame {
   type: 'barge-in'
 }
@@ -65,6 +70,7 @@ export type VoiceServerFrame =
   | VoicePartialFrame
   | VoiceFinalFrame
   | VoiceAudioFrame
+  | VoiceCaptionFrame
   | VoiceBargeInFrame
   | VoiceMetricsFrame
   | VoiceErrorFrame

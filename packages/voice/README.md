@@ -43,7 +43,7 @@ models/
 | `DSH_VOICE_MODELS` | `~/.cache/dsh-voice/models` | 模型目录 |
 | `DSH_VOICE_TTS_SID` | `47` | Kokoro 音色，45–48 女声，49–52 男声 |
 | `DSH_VOICE_TTS_THREADS` | `4` | TTS 推理线程数 |
-| `DSH_VOICE_SILENCE_MS` | `600` | VAD 端点静音阈值 |
+| `DSH_VOICE_SILENCE_MS` | `900` | VAD 端点静音阈值；以连接词/逗号结尾会再等 450ms |
 
 ## 当前范围
 

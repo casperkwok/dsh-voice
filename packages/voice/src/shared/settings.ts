@@ -17,6 +17,6 @@ export const VOICE_DEFAULTS: VoiceSettings = {
   ttsProvider: 'auto',
   ttsSid: 47,
   ttsThreads: 4,
-  silenceMs: 600,
+  silenceMs: 900,
   basePath: '/voice',
 }

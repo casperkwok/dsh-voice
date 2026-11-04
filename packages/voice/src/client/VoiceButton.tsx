@@ -42,6 +42,7 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement {
       status: 'idle',
       partial: '',
       final: '',
+      caption: '',
       error: null,
       sessionId: null,
     })
@@ -62,6 +63,7 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement {
       status: 'listening',
       partial: '',
       final: '',
+      caption: '',
       error: null,
     })
 
@@ -89,7 +91,9 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement {
         } else if (message.type === 'partial') {
           setVoiceState({ partial: message.text })
         } else if (message.type === 'final') {
-          setVoiceState({ final: message.text, partial: '' })
+          setVoiceState({ final: message.text, partial: '', caption: '' })
+        } else if (message.type === 'caption') {
+          setVoiceState({ caption: message.text })
         } else if (message.type === 'audio') {
           playback.play(message.audio, message.sampleRate)
         } else if (message.type === 'barge-in') {

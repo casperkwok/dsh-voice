@@ -7,6 +7,7 @@ export interface VoiceUiState {
   status: VoiceState
   partial: string
   final: string
+  caption: string
   error: string | null
   provider: string
 }
@@ -17,6 +18,7 @@ const initial: VoiceUiState = {
   status: 'idle',
   partial: '',
   final: '',
+  caption: '',
   error: null,
   provider: '',
 }

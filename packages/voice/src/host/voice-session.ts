@@ -12,6 +12,10 @@ interface VoiceSessionOptions {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+const debug = (...args: unknown[]): void => {
+  if (process.env.DSH_VOICE_DEBUG) console.log('[dsh-voice:eou]', ...args)
+}
+
 export class VoiceSession {
   private readonly engine: VoiceEngine
   private readonly settings: VoiceSettings
@@ -37,6 +41,13 @@ export class VoiceSession {
   private assistantActive = false
   private muted = false
   private destroyed = false
+  private pendingFinal: {
+    text: string
+    deadline: number
+    voiceAt: number | null
+    endpointAt: number
+  } | null = null
+  private thinkingTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(options: VoiceSessionOptions) {
     this.engine = options.engine
@@ -75,6 +86,18 @@ export class VoiceSession {
     this.vad.acceptWaveform(samples)
     if (!this.speaking && this.vad.isDetected() && pcmRms(samples) > 0.008) {
       this.lastVoiceAt = performance.now()
+      if (this.pendingFinal) {
+        debug('resume, cancel pending', this.pendingFinal.text)
+        this.pendingFinal = null
+        this.send({ type: 'status', state: 'listening', sessionId: this.sessionId })
+      }
+    }
+    if (this.pendingFinal && performance.now() >= this.pendingFinal.deadline) {
+      const pending = this.pendingFinal
+      debug('pending deadline, finalize', pending.text)
+      this.pendingFinal = null
+      this.finalizeTurn(pending.text, pending.endpointAt, pending.voiceAt)
+      return
     }
 
     if (this.speaking) {
@@ -106,18 +129,78 @@ export class VoiceSession {
         this.resetVad()
         continue
       }
-      this.turnId += 1
-      this.muted = false
-      this.lastTurnVoiceAt = this.lastVoiceAt
-      this.lastEndpointDelayMs =
-        this.lastVoiceAt === null ? null : Math.round(endpointAt - this.lastVoiceAt)
-      this.send({ type: 'final', text: finalText })
-      this.send({ type: 'status', state: 'thinking', sessionId: this.sessionId })
-      this.resetAsr()
-      this.resetVad()
-      this.onFinal(finalText)
+      const extensionMs = this.incompleteDelay(finalText)
+      debug('segment', JSON.stringify(finalText), 'extensionMs=', extensionMs)
+      if (extensionMs > 0) {
+        this.pendingFinal = {
+          text: finalText,
+          deadline: performance.now() + extensionMs,
+          voiceAt: this.lastVoiceAt,
+          endpointAt,
+        }
+        this.resetVad()
+        break
+      }
+      this.finalizeTurn(finalText, endpointAt, this.lastVoiceAt)
       break
     }
+  }
+
+  private incompleteDelay(text: string): number {
+    const value = text.trim()
+    if (!value) return 0
+    if (/[，,、]$/.test(value)) return 900
+    if (
+      /(因为|然后|就是|所以|但是|不过|如果|那个|这个|还有|以及|比如|我觉得|就是说|或者说|问题是|比如说)$/.test(
+        value,
+      )
+    ) {
+      return 900
+    }
+    return value.length <= 4 ? 500 : 0
+  }
+
+  private finalizeTurn(
+    text: string,
+    endpointAt: number,
+    voiceAt: number | null,
+  ): void {
+    this.turnId += 1
+    this.muted = false
+    this.lastTurnVoiceAt = voiceAt
+    this.lastEndpointDelayMs =
+      voiceAt === null ? null : Math.round(endpointAt - voiceAt)
+    this.send({ type: 'final', text })
+    this.send({ type: 'status', state: 'thinking', sessionId: this.sessionId })
+    this.send({ type: 'caption', text: '正在思考…' })
+    this.resetAsr()
+    this.resetVad()
+    this.onFinal(text)
+    this.scheduleThinkingCue()
+  }
+
+  private scheduleThinkingCue(): void {
+    this.clearThinkingCue()
+    this.thinkingTimer = setTimeout(() => {
+      this.thinkingTimer = null
+      if (this.destroyed || this.speaking || this.muted) return
+      const cue = this.engine.thinkingCue
+      if (!cue) return
+      this.send({ type: 'caption', text: '正在思考…' })
+      this.send({
+        type: 'audio',
+        audio: floatToBase64(cue.samples),
+        sampleRate: cue.sampleRate,
+        sentenceId: 0,
+        chunkId: 0,
+        final: true,
+      })
+    }, 600)
+  }
+
+  private clearThinkingCue(): void {
+    if (this.thinkingTimer) clearTimeout(this.thinkingTimer)
+    this.thinkingTimer = null
   }
 
   private remember(samples: Float32Array): void {
@@ -151,6 +234,7 @@ export class VoiceSession {
     this.speechGeneration += 1
     this.speaking = false
     this.muted = true
+    this.clearThinkingCue()
     const buffered = this.recentFrames
     this.recentFrames = []
     this.recentSamples = 0
@@ -162,12 +246,14 @@ export class VoiceSession {
   }
 
   beginAssistant(): void {
+    this.clearThinkingCue()
     this.assistantActive = true
     this.assistantBuffer = ''
   }
 
   pushAssistantText(text: string): void {
     if (this.destroyed || this.muted) return
+    this.clearThinkingCue()
     this.assistantBuffer += text
     this.flushAssistant(false)
   }
@@ -217,6 +303,7 @@ export class VoiceSession {
     let metricsSent = false
     this.speaking = true
     this.send({ type: 'status', state: 'speaking', sessionId: this.sessionId })
+    this.send({ type: 'caption', text })
 
     const emitMetrics = (): void => {
       if (metricsSent || firstChunkAt === null) return
@@ -280,6 +367,7 @@ export class VoiceSession {
 
   destroy(): void {
     this.destroyed = true
+    this.clearThinkingCue()
     this.ttsEpoch += 1
     this.speechGeneration += 1
   }
@@ -307,6 +395,10 @@ function stripForSpeech(text: string): string {
     .replace(/^\s*\d+\.\s+/gm, '')
     .replace(/\|/g, ' ')
     .replace(/[（）()]/g, '，')
+    .replace(/\b(?:CST|UTC|GMT|PST|PDT|EST|EDT|CET|DST)\b/g, '')
+    .replace(/[，,]{2,}/g, '，')
+    .replace(/[，,]\s*([。！？!?])/g, '$1')
+    .replace(/^[，,。\s]+/, '')
 }
 
 const CN_DIGITS = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九']

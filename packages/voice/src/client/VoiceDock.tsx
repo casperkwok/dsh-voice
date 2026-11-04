@@ -13,41 +13,103 @@ const LABELS: Record<string, string> = {
   interrupted: '已打断',
 }
 
+const HINTS: Record<string, string> = {
+  listening: '停顿一下再发送',
+  thinking: '正在组织回答',
+  speaking: '开口即可打断',
+}
+
+const COLORS: Record<string, string> = {
+  listening: '#6ee7b7',
+  thinking: '#fbbf24',
+  speaking: '#93c5fd',
+  interrupted: '#fca5a5',
+}
+
+const EQUALIZER_CSS = `
+@keyframes dshv-eq {
+  0%, 100% { transform: scaleY(.35); opacity: .55; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+`
+
+function Equalizer({ color }: { color: string }): ReactElement {
+  return (
+    <span
+      aria-hidden="true"
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 2, height: 14, width: 16 }}
+    >
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          style={{
+            width: 3,
+            height: 14,
+            borderRadius: 2,
+            background: color,
+            transformOrigin: 'center',
+            animation: `dshv-eq .9s ease-in-out ${i * 0.12}s infinite`,
+          }}
+        />
+      ))}
+    </span>
+  )
+}
+
 export function VoiceDock({ sessionId }: VoiceDockProps): ReactElement | null {
   const ui = useVoiceState()
   if (!ui.active) return null
   if (sessionId && ui.sessionId && sessionId !== ui.sessionId) return null
+
+  const color = COLORS[ui.status] ?? '#6ee7b7'
+  const text =
+    ui.status === 'speaking' || ui.status === 'thinking'
+      ? ui.caption || (ui.status === 'thinking' ? '正在组织回答…' : '')
+      : ui.partial || ui.final
 
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 8,
-        minHeight: 26,
-        padding: '2px 2px 4px',
+        gap: 9,
+        minHeight: 32,
+        padding: '4px 10px',
+        marginBottom: 6,
+        borderRadius: 9,
+        border: '1px solid rgba(255,255,255,.09)',
+        background: 'rgba(255,255,255,.035)',
         fontSize: 12,
-        color: 'var(--dsh-text-secondary, rgba(235,240,248,.62))',
+        color: 'rgba(235,240,248,.82)',
       }}
     >
-      <span style={{ color: '#6ee7b7', fontWeight: 600 }}>
+      <style>{EQUALIZER_CSS}</style>
+      <Equalizer color={color} />
+      <span style={{ color, fontWeight: 650, flex: '0 0 auto' }}>
         {LABELS[ui.status] ?? ui.status}
       </span>
-      {ui.provider ? <span style={{ opacity: 0.6 }}>{ui.provider}</span> : null}
       {ui.error ? (
-        <span style={{ color: '#fca5a5' }}>{ui.error}</span>
+        <span style={{ color: '#fca5a5', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {ui.error}
+        </span>
       ) : (
         <span
           style={{
+            flex: 1,
+            minWidth: 0,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
-            minWidth: 0,
+            color: ui.partial ? 'rgba(235,240,248,.58)' : 'rgba(235,240,248,.9)',
           }}
         >
-          {ui.partial || ui.final}
+          {text}
         </span>
       )}
+      <span style={{ flex: '0 0 auto', opacity: 0.42, fontSize: 11 }}>
+        {ui.provider ? `${ui.provider} · ` : ''}
+        {HINTS[ui.status] ?? ''}
+      </span>
     </div>
   )
 }

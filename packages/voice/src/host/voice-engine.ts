@@ -57,6 +57,7 @@ export class VoiceEngine {
   vadFactory: (() => any) | null = null
   primary: TtsHandle | null = null
   latin: TtsHandle | null = null
+  thinkingCue: { samples: Float32Array; sampleRate: number } | null = null
   error: string | null = null
 
   constructor(settings: VoiceSettings) {
@@ -162,6 +163,21 @@ export class VoiceEngine {
         silenceScale: 0.2,
       }),
     })
+    try {
+      const cue = this.primary.tts.generate({
+        text: '我正在思考。',
+        generationConfig: new sherpa.GenerationConfig({
+          sid: this.primary.sid,
+          speed: 1.0,
+          silenceScale: 0.2,
+        }),
+      })
+      if (cue?.samples?.length) {
+        this.thinkingCue = { samples: cue.samples, sampleRate: cue.sampleRate }
+      }
+    } catch (err) {
+      console.warn('[dsh-voice] thinking cue unavailable', err)
+    }
   }
 
   private createMatcha(): TtsHandle | null {
