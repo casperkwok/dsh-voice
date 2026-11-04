@@ -25,7 +25,7 @@ export function VoiceOrb({ size, state, level, muted }: VoiceOrbProps): ReactEle
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const dpr = Math.min(2, window.devicePixelRatio || 1)
+    const dpr = Math.max(2, Math.min(3, window.devicePixelRatio || 1))
     canvas.width = Math.round(size * dpr)
     canvas.height = Math.round(size * dpr)
     const ctx = canvas.getContext('2d')
@@ -74,8 +74,8 @@ export function VoiceOrb({ size, state, level, muted }: VoiceOrbProps): ReactEle
       for (let layer = 2; layer >= 1; layer -= 1) {
         const radius = base * (1 + layer * 0.07)
         const grad = ctx.createRadialGradient(cx, cy, radius * 0.45, cx, cy, radius * 1.2)
-        grad.addColorStop(0, 'rgba(59,130,246,.16)')
-        grad.addColorStop(0.65, 'rgba(37,99,235,.07)')
+        grad.addColorStop(0, 'rgba(59,130,246,.1)')
+        grad.addColorStop(0.65, 'rgba(37,99,235,.045)')
         grad.addColorStop(1, 'rgba(29,78,216,0)')
         ctx.fillStyle = grad
         drawBlob(cx, cy, radius, time + layer * 0.7, layer)
@@ -91,16 +91,19 @@ export function VoiceOrb({ size, state, level, muted }: VoiceOrbProps): ReactEle
         cy,
         base * 1.04,
       )
-      core.addColorStop(0, 'rgba(191,219,254,.98)')
-      core.addColorStop(0.28, 'rgba(96,165,250,.98)')
-      core.addColorStop(0.62, 'rgba(37,99,235,.97)')
-      core.addColorStop(0.88, 'rgba(29,78,216,.92)')
-      core.addColorStop(1, 'rgba(23,63,180,.88)')
+      core.addColorStop(0, 'rgba(147,197,253,.98)')
+      core.addColorStop(0.3, 'rgba(96,165,250,.99)')
+      core.addColorStop(0.64, 'rgba(37,99,235,.99)')
+      core.addColorStop(0.9, 'rgba(29,78,216,.98)')
+      core.addColorStop(1, 'rgba(23,63,180,.96)')
       ctx.fillStyle = core
-      ctx.shadowColor = 'rgba(59,130,246,.35)'
-      ctx.shadowBlur = size * 0.12
+      ctx.shadowBlur = 0
       drawBlob(cx, cy, base, time, 0)
       ctx.fill()
+      // A crisp rim keeps the silhouette from reading as a blurred glow.
+      ctx.strokeStyle = 'rgba(219,234,254,.5)'
+      ctx.lineWidth = 1.2
+      ctx.stroke()
 
       // Internal liquid clouds, clipped to the sphere. This is what stops the
       // orb from reading as a perfectly smooth balloon.
@@ -120,8 +123,8 @@ export function VoiceOrb({ size, state, level, muted }: VoiceOrbProps): ReactEle
           cy + oy,
           size * (0.16 + i * 0.035),
         )
-        cloud.addColorStop(0, 'rgba(186,230,253,.26)')
-        cloud.addColorStop(0.55, 'rgba(96,165,250,.1)')
+        cloud.addColorStop(0, 'rgba(186,230,253,.18)')
+        cloud.addColorStop(0.55, 'rgba(96,165,250,.07)')
         cloud.addColorStop(1, 'rgba(37,99,235,0)')
         ctx.fillStyle = cloud
         ctx.fillRect(0, 0, size, size)
@@ -147,14 +150,14 @@ export function VoiceOrb({ size, state, level, muted }: VoiceOrbProps): ReactEle
         0,
         cx - size * 0.11,
         cy - size * 0.14,
-        size * 0.15,
+        size * 0.17,
       )
-      highlight.addColorStop(0, 'rgba(255,255,255,.09)')
-      highlight.addColorStop(0.55, 'rgba(255,255,255,.02)')
+      highlight.addColorStop(0, 'rgba(255,255,255,.22)')
+      highlight.addColorStop(0.5, 'rgba(255,255,255,.04)')
       highlight.addColorStop(1, 'rgba(255,255,255,0)')
       ctx.fillStyle = highlight
       ctx.beginPath()
-      ctx.arc(cx - size * 0.09, cy - size * 0.12, size * 0.14, 0, Math.PI * 2)
+      ctx.arc(cx - size * 0.1, cy - size * 0.13, size * 0.16, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
 
@@ -175,7 +178,7 @@ export function VoiceOrb({ size, state, level, muted }: VoiceOrbProps): ReactEle
         display: 'block',
         filter: muted
           ? 'grayscale(.75) opacity(.6)'
-          : 'drop-shadow(0 18px 40px rgba(37,99,235,.3))',
+          : 'drop-shadow(0 12px 28px rgba(37,99,235,.26))',
       }}
     />
   )
