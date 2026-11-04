@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { setVoiceState, useVoiceState } from './store.ts'
 import { startMic, type MicCapture } from './mic.ts'
 import { Playback } from './playback.ts'
+import { voiceControl } from './control.ts'
+import { WaveIcon } from './icons.tsx'
 
 const BASE_PATH = '/voice'
 
@@ -16,6 +18,7 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement {
   const micRef = useRef<MicCapture | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const playbackRef = useRef<Playback | null>(null)
+  const mutedRef = useRef(false)
 
   const stop = (): void => {
     const ws = wsRef.current
@@ -36,6 +39,7 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement {
       void ctxRef.current.close()
       ctxRef.current = null
     }
+    mutedRef.current = false
     setBusy(false)
     setVoiceState({
       active: false,
@@ -45,10 +49,26 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement {
       caption: '',
       error: null,
       sessionId: null,
+      muted: false,
     })
   }
 
+  const toggleMute = (): void => {
+    if (!ui.active) return
+    mutedRef.current = !mutedRef.current
+    setVoiceState({ muted: mutedRef.current })
+  }
+
   useEffect(() => stop, [])
+
+  useEffect(() => {
+    voiceControl.stop = stop
+    voiceControl.toggleMute = toggleMute
+    return () => {
+      if (voiceControl.stop === stop) delete voiceControl.stop
+      if (voiceControl.toggleMute === toggleMute) delete voiceControl.toggleMute
+    }
+  })
 
   const start = async (): Promise<void> => {
     if (busy || ui.active) return
@@ -57,6 +77,7 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement {
       return
     }
     setBusy(true)
+    mutedRef.current = false
     setVoiceState({
       active: true,
       sessionId,
@@ -65,6 +86,7 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement {
       final: '',
       caption: '',
       error: null,
+      muted: false,
     })
 
     try {
@@ -113,6 +135,7 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement {
       await opened
       ws.send(JSON.stringify({ type: 'start', sessionId }))
       micRef.current = await startMic(ctx, (frame) => {
+        if (mutedRef.current) return
         if (ws.readyState === WebSocket.OPEN) ws.send(frame)
       })
       setBusy(false)
@@ -124,53 +147,48 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement {
     }
   }
 
-  const active = ui.active
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      const combo =
+        (event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'v'
+      if (combo) {
+        event.preventDefault()
+        if (ui.active) stop()
+        else void start()
+      } else if (event.key === 'Escape' && ui.active) {
+        stop()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [ui.active, sessionId, busy])
+
+  const shortcut = navigator.userAgent.includes('Mac') ? '⌘⇧V' : 'Ctrl+Shift+V'
   return (
     <button
       type="button"
-      onClick={() => (active ? stop() : void start())}
+      onClick={() => (ui.active ? stop() : void start())}
       disabled={busy}
-      title={active ? '退出语音模式' : '语音模式'}
+      title={`${ui.active ? '结束语音' : '开始语音'} ${shortcut}`}
+      aria-label={ui.active ? '结束语音' : '开始语音'}
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
+        display: 'inline-grid',
+        placeItems: 'center',
+        width: 32,
         height: 32,
-        padding: '0 10px',
-        borderRadius: 8,
-        border: `1px solid ${active ? 'rgba(110,231,183,.55)' : 'rgba(255,255,255,.14)'}`,
-        background: active ? 'rgba(110,231,183,.12)' : 'transparent',
-        color: active ? '#6ee7b7' : 'inherit',
+        padding: 0,
+        borderRadius: '50%',
+        border: 'none',
+        background: '#3b82f6',
+        color: '#fff',
         cursor: busy ? 'wait' : 'pointer',
-        fontSize: 13,
-        lineHeight: 1,
+        opacity: busy ? 0.65 : 1,
+        boxShadow: ui.active
+          ? '0 0 0 2px rgba(110,231,183,.55), 0 4px 16px rgba(59,130,246,.35)'
+          : '0 2px 10px rgba(59,130,246,.25)',
       }}
     >
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        aria-hidden="true"
-        style={{ flex: '0 0 auto', opacity: active ? 1 : 0.72 }}
-      >
-        <rect
-          x="9"
-          y="3"
-          width="6"
-          height="11"
-          rx="3"
-          stroke="currentColor"
-          strokeWidth="1.8"
-        />
-        <path
-          d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-      </svg>
-      {active ? '语音中' : '语音'}
+      <WaveIcon size={17} />
     </button>
   )
 }

@@ -10,6 +10,7 @@ export interface VoiceUiState {
   caption: string
   error: string | null
   provider: string
+  muted: boolean
 }
 
 const initial: VoiceUiState = {
@@ -21,6 +22,7 @@ const initial: VoiceUiState = {
   caption: '',
   error: null,
   provider: '',
+  muted: false,
 }
 
 let state = initial
