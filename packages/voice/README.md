@@ -1,6 +1,6 @@
 # @dsh-voice/voice
 
-DeepSeek Harness 的通用全双工语音插件。Host 侧运行本地流式 ASR、Silero VAD、Matcha / Kokoro 本地 TTS；Client 侧提供输入框麦克风按钮、状态条、实时字幕和 WebAudio 播放队列。
+DeepSeek Harness 的通用全双工语音插件。Host 侧运行本地流式 ASR、Silero VAD、Kokoro / Matcha 本地 TTS；Client 侧提供输入框麦克风按钮、语音光球、实时字幕和 WebAudio 播放队列。默认用 Kokoro（音色更自然），需要更低首声延迟时可在设置里切 Matcha。
 
 ## 安装
 
@@ -41,7 +41,7 @@ models/
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `DSH_VOICE_MODELS` | `~/.cache/dsh-voice/models` | 模型目录 |
-| `DSH_VOICE_TTS_SID` | `47` | Kokoro 音色，45–48 女声，49–52 男声 |
+| `DSH_VOICE_TTS_SID` | `48` | Kokoro 音色，45–48 女声，49–52 男声 |
 | `DSH_VOICE_TTS_THREADS` | `4` | TTS 推理线程数 |
 | `DSH_VOICE_SILENCE_MS` | `900` | VAD 端点静音阈值；以连接词/逗号结尾会再等 450ms |
 

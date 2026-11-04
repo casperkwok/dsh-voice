@@ -14,8 +14,8 @@ export interface VoiceSettings {
 
 export const VOICE_DEFAULTS: VoiceSettings = {
   modelsDir: '',
-  ttsProvider: 'auto',
-  ttsSid: 47,
+  ttsProvider: 'kokoro',
+  ttsSid: 48,
   ttsThreads: 4,
   silenceMs: 900,
   basePath: '/voice',

@@ -19,7 +19,7 @@ afterEach(() => {
 describe('settings store', () => {
   it('loads defaults when the file is absent', () => {
     expect(loadSettings().silenceMs).toBe(900)
-    expect(loadSettings().ttsProvider).toBe('auto')
+    expect(loadSettings().ttsProvider).toBe('kokoro')
   })
 
   it('persists and clamps values', () => {
