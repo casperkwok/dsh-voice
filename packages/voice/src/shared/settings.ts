@@ -2,6 +2,17 @@ export type TtsMode = 'local' | 'cloud'
 export type LocalTtsProvider = 'auto' | 'matcha' | 'kokoro' | 'vits'
 export type CloudTtsProvider = 'minimax' | 'volc' | 'dashscope'
 
+export interface CloudProfile {
+  /** Secret. Never returned to the client in full. */
+  apiKey: string
+  endpoint: string
+  resourceId: string
+  groupId: string
+  voice: string
+  model: string
+  speed: number
+}
+
 export interface VoiceSettings {
   /** Models directory. Empty means ~/.cache/dsh-voice/models. */
   modelsDir: string
@@ -18,23 +29,28 @@ export interface VoiceSettings {
   /** Local WebSocket path. Fixed to keep the client bundle stable. */
   basePath: string
 
-  /** Cloud TTS provider. */
   cloudProvider: CloudTtsProvider
-  /** Secret. Never returned to the client in full. */
-  cloudApiKey: string
-  /** MiniMax Group ID / Volc resource id / DashScope workspace. */
-  cloudResourceId: string
-  cloudGroupId: string
-  cloudVoice: string
-  cloudModel: string
-  cloudEndpoint: string
-  cloudSpeed: number
+  cloudProfiles: Record<CloudTtsProvider, CloudProfile>
 }
 
-export interface PublicVoiceSettings extends Omit<VoiceSettings, 'cloudApiKey'> {
-  hasCloudApiKey: boolean
-  cloudApiKeyMasked: string
+export interface PublicCloudProfile extends Omit<CloudProfile, 'apiKey'> {
+  hasApiKey: boolean
+  apiKeyMasked: string
 }
+
+export interface PublicVoiceSettings extends Omit<VoiceSettings, 'cloudProfiles'> {
+  cloudProfiles: Record<CloudTtsProvider, PublicCloudProfile>
+}
+
+const emptyProfile = (): CloudProfile => ({
+  apiKey: '',
+  endpoint: '',
+  resourceId: '',
+  groupId: '',
+  voice: '',
+  model: '',
+  speed: 1,
+})
 
 export const VOICE_DEFAULTS: VoiceSettings = {
   modelsDir: '',
@@ -46,21 +62,49 @@ export const VOICE_DEFAULTS: VoiceSettings = {
   silenceMs: 900,
   basePath: '/voice',
 
-  cloudProvider: 'minimax',
-  cloudApiKey: '',
-  cloudResourceId: '',
-  cloudGroupId: '',
-  cloudVoice: 'female-shaonv',
-  cloudModel: 'speech-02-hd',
-  cloudEndpoint: 'https://api.minimax.io',
-  cloudSpeed: 1,
+  cloudProvider: 'volc',
+  cloudProfiles: {
+    minimax: {
+      ...emptyProfile(),
+      endpoint: 'https://api.minimax.io',
+      voice: 'female-shaonv',
+      model: 'speech-02-hd',
+    },
+    volc: {
+      ...emptyProfile(),
+      resourceId: 'seed-tts-2.0',
+      voice: 'zh_female_xiaohe_uranus_bigtts',
+    },
+    dashscope: {
+      ...emptyProfile(),
+      endpoint: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
+      voice: 'Cherry',
+      model: 'qwen3-tts-flash',
+    },
+  },
+}
+
+export function cloudProfile(settings: VoiceSettings): CloudProfile {
+  return settings.cloudProfiles[settings.cloudProvider]
 }
 
 export function publicSettings(settings: VoiceSettings): PublicVoiceSettings {
-  const { cloudApiKey, ...rest } = settings
+  const { cloudProfiles, ...rest } = settings
   return {
     ...rest,
-    hasCloudApiKey: cloudApiKey.length > 0,
-    cloudApiKeyMasked: cloudApiKey ? `••••${cloudApiKey.slice(-4)}` : '',
+    cloudProfiles: {
+      minimax: mask(cloudProfiles.minimax),
+      volc: mask(cloudProfiles.volc),
+      dashscope: mask(cloudProfiles.dashscope),
+    },
+  }
+}
+
+function mask(profile: CloudProfile): PublicCloudProfile {
+  const { apiKey, ...rest } = profile
+  return {
+    ...rest,
+    hasApiKey: apiKey.length > 0,
+    apiKeyMasked: apiKey ? `••••${apiKey.slice(-4)}` : '',
   }
 }

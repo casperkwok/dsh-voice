@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react'
-import type { CloudTtsProvider, PublicVoiceSettings, VoiceSettings } from '../shared/settings.ts'
+import type {
+  CloudProfile,
+  CloudTtsProvider,
+  PublicCloudProfile,
+  PublicVoiceSettings,
+  VoiceSettings,
+} from '../shared/settings.ts'
 
 interface SettingsResponse {
   settings: PublicVoiceSettings
@@ -8,18 +14,15 @@ interface SettingsResponse {
   ready?: boolean
 }
 
-type Form = PublicVoiceSettings & { cloudApiKey: string }
-
 const CLOUD_PROVIDERS: {
   id: CloudTtsProvider
   name: string
   badge: string
   desc: string
-  ready: boolean
 }[] = [
-  { id: 'minimax', name: 'MiniMax', badge: 'MM', desc: 'speech-02-hd / turbo', ready: true },
-  { id: 'volc', name: '火山引擎', badge: '火', desc: '双向流式 TTS', ready: false },
-  { id: 'dashscope', name: '阿里百炼', badge: '阿', desc: 'CosyVoice / Sambert', ready: false },
+  { id: 'volc', name: '火山引擎', badge: '火', desc: '双向流式 TTS' },
+  { id: 'dashscope', name: '阿里百炼', badge: '阿', desc: 'Qwen3-TTS' },
+  { id: 'minimax', name: 'MiniMax', badge: 'MM', desc: 'speech-02-hd / turbo' },
 ]
 
 const LOCAL_PROVIDERS: { id: VoiceSettings['ttsProvider']; name: string; badge: string; desc: string }[] = [
@@ -94,7 +97,8 @@ const CSS = `
 `
 
 export function SettingsCard(): ReactElement {
-  const [form, setForm] = useState<Form | null>(null)
+  const [form, setForm] = useState<PublicVoiceSettings | null>(null)
+  const [keyInput, setKeyInput] = useState('')
   const [path, setPath] = useState('')
   const [status, setStatus] = useState('')
   const [saving, setSaving] = useState(false)
@@ -108,7 +112,7 @@ export function SettingsCard(): ReactElement {
     fetch('/voice/settings')
       .then((res) => res.json())
       .then((data: SettingsResponse) => {
-        setForm({ ...data.settings, cloudApiKey: '' })
+        setForm(data.settings)
         setPath(data.settingsPath)
         setEffective(data.effectiveProvider ?? '')
         setReady(Boolean(data.ready))
@@ -131,12 +135,29 @@ export function SettingsCard(): ReactElement {
     setStatus('')
   }
 
+  const profile = form.cloudProfiles[form.cloudProvider]
+  const updateProfile = <K extends keyof PublicCloudProfile>(key: K, value: PublicCloudProfile[K]): void => {
+    setForm({
+      ...form,
+      cloudProfiles: {
+        ...form.cloudProfiles,
+        [form.cloudProvider]: { ...profile, [key]: value },
+      },
+    })
+    setStatus('')
+  }
+
   const save = async (): Promise<boolean> => {
     setSaving(true)
     setStatus('')
     try {
-      const body: Record<string, unknown> = { ...form }
-      if (!form.cloudApiKey) delete body.cloudApiKey
+      const body = {
+        ...form,
+        cloudProfiles: {
+          ...form.cloudProfiles,
+          [form.cloudProvider]: { ...profile, apiKey: keyInput },
+        },
+      }
       const res = await fetch('/voice/settings', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -144,7 +165,8 @@ export function SettingsCard(): ReactElement {
       })
       const data = await res.json()
       if (!res.ok || !data.ok) throw new Error(data.error ?? '保存失败')
-      setForm({ ...data.settings, cloudApiKey: '' })
+      setForm(data.settings)
+      setKeyInput('')
       setPath(data.settingsPath)
       setEffective(data.effectiveProvider ?? effective)
       setReady(Boolean(data.ready))
@@ -257,19 +279,15 @@ export function SettingsCard(): ReactElement {
                   type="button"
                   className="dshv-card"
                   data-selected={form.cloudProvider === p.id}
-                  disabled={!p.ready}
                   onClick={() => {
-                    if (!p.ready) {
-                      setStatus(`${p.name} 适配器待接入`)
-                      return
-                    }
                     update('cloudProvider', p.id)
+                    setKeyInput('')
                   }}
                 >
                   <span className="dshv-badge">{p.badge}</span>
                   <span>
                     <span style={{ display: 'block', fontSize: 12.5 }}>{p.name}</span>
-                    <span style={{ display: 'block', fontSize: 10.5, opacity: 0.45, marginTop: 2 }}>{p.ready ? p.desc : '待接入'}</span>
+                    <span style={{ display: 'block', fontSize: 10.5, opacity: 0.45, marginTop: 2 }}>{p.desc}</span>
                   </span>
                 </button>
               ))}
@@ -277,51 +295,94 @@ export function SettingsCard(): ReactElement {
           </div>
 
           <div className="dshv-field">
-            <span className="dshv-label">API Key {form.hasCloudApiKey ? `（已保存 ${form.cloudApiKeyMasked}）` : ''}</span>
+            <span className="dshv-label">
+              API Key {profile.hasApiKey ? `（已保存 ${profile.apiKeyMasked}）` : ''}
+            </span>
             <input
               className="dshv-input"
               type="password"
               autoComplete="off"
-              value={form.cloudApiKey}
-              placeholder={form.hasCloudApiKey ? '留空表示保持现有 Key' : '粘贴 API Key'}
-              onChange={(e) => setForm({ ...form, cloudApiKey: e.target.value })}
+              value={keyInput}
+              placeholder={profile.hasApiKey ? '留空表示保持现有 Key' : '粘贴 API Key'}
+              onChange={(e) => setKeyInput(e.target.value)}
             />
           </div>
 
-          <div className="dshv-grid2">
-            <div className="dshv-field">
-              <span className="dshv-label">Endpoint</span>
-              <input className="dshv-input" value={form.cloudEndpoint} onChange={(e) => update('cloudEndpoint', e.target.value)} />
-            </div>
-            <div className="dshv-field">
-              <span className="dshv-label">Group ID</span>
-              <input className="dshv-input" value={form.cloudGroupId} onChange={(e) => update('cloudGroupId', e.target.value)} />
-            </div>
-          </div>
+          {form.cloudProvider === 'volc' ? (
+            <>
+              <div className="dshv-grid2">
+                <div className="dshv-field">
+                  <span className="dshv-label">Resource ID</span>
+                  <input className="dshv-input" value={profile.resourceId} placeholder="seed-tts-2.0" onChange={(e) => updateProfile('resourceId', e.target.value)} />
+                </div>
+                <div className="dshv-field">
+                  <span className="dshv-label">语速 {profile.speed.toFixed(1)}×</span>
+                  <input type="range" min={0.5} max={2} step={0.1} value={profile.speed} onChange={(e) => updateProfile('speed', Number(e.target.value))} />
+                </div>
+              </div>
+              <div className="dshv-field">
+                <span className="dshv-label">音色</span>
+                <input className="dshv-input" value={profile.voice} placeholder="zh_female_xiaohe_uranus_bigtts" onChange={(e) => updateProfile('voice', e.target.value)} />
+              </div>
+            </>
+          ) : form.cloudProvider === 'dashscope' ? (
+            <>
+              <div className="dshv-grid2">
+                <div className="dshv-field">
+                  <span className="dshv-label">Endpoint</span>
+                  <input className="dshv-input" value={profile.endpoint} onChange={(e) => updateProfile('endpoint', e.target.value)} />
+                </div>
+                <div className="dshv-field">
+                  <span className="dshv-label">模型</span>
+                  <select className="dshv-input" value={profile.model} onChange={(e) => updateProfile('model', e.target.value)}>
+                    <option value="qwen3-tts-flash">qwen3-tts-flash</option>
+                    <option value="qwen3-tts-plus">qwen3-tts-plus</option>
+                  </select>
+                </div>
+              </div>
+              <div className="dshv-field">
+                <span className="dshv-label">音色</span>
+                <input className="dshv-input" value={profile.voice} placeholder="Cherry" onChange={(e) => updateProfile('voice', e.target.value)} />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="dshv-grid2">
+                <div className="dshv-field">
+                  <span className="dshv-label">Endpoint</span>
+                  <input className="dshv-input" value={profile.endpoint} onChange={(e) => updateProfile('endpoint', e.target.value)} />
+                </div>
+                <div className="dshv-field">
+                  <span className="dshv-label">Group ID</span>
+                  <input className="dshv-input" value={profile.groupId} onChange={(e) => updateProfile('groupId', e.target.value)} />
+                </div>
+              </div>
 
-          <div className="dshv-grid2">
-            <div className="dshv-field">
-              <span className="dshv-label">模型</span>
-              <select className="dshv-input" value={form.cloudModel} onChange={(e) => update('cloudModel', e.target.value)}>
-                <option value="speech-02-hd">speech-02-hd</option>
-                <option value="speech-02-turbo">speech-02-turbo</option>
-                <option value="speech-01-hd">speech-01-hd</option>
-                <option value="speech-01-turbo">speech-01-turbo</option>
-              </select>
-            </div>
-            <div className="dshv-field">
-              <span className="dshv-label">语速 {form.cloudSpeed.toFixed(1)}×</span>
-              <input type="range" min={0.5} max={2} step={0.1} value={form.cloudSpeed} onChange={(e) => update('cloudSpeed', Number(e.target.value))} />
-            </div>
-          </div>
+              <div className="dshv-grid2">
+                <div className="dshv-field">
+                  <span className="dshv-label">模型</span>
+                  <select className="dshv-input" value={profile.model} onChange={(e) => updateProfile('model', e.target.value)}>
+                    <option value="speech-02-hd">speech-02-hd</option>
+                    <option value="speech-02-turbo">speech-02-turbo</option>
+                    <option value="speech-01-hd">speech-01-hd</option>
+                    <option value="speech-01-turbo">speech-01-turbo</option>
+                  </select>
+                </div>
+                <div className="dshv-field">
+                  <span className="dshv-label">语速 {profile.speed.toFixed(1)}×</span>
+                  <input type="range" min={0.5} max={2} step={0.1} value={profile.speed} onChange={(e) => updateProfile('speed', Number(e.target.value))} />
+                </div>
+              </div>
 
-          <div className="dshv-field">
-            <span className="dshv-label">音色</span>
-            <input className="dshv-input" list="dshv-minimax-voices" value={form.cloudVoice} onChange={(e) => update('cloudVoice', e.target.value)} />
-            <datalist id="dshv-minimax-voices">
-              {MINIMAX_VOICES.map((voice) => <option key={voice} value={voice} />)}
-            </datalist>
-          </div>
+              <div className="dshv-field">
+                <span className="dshv-label">音色</span>
+                <input className="dshv-input" list="dshv-minimax-voices" value={profile.voice} onChange={(e) => updateProfile('voice', e.target.value)} />
+                <datalist id="dshv-minimax-voices">
+                  {MINIMAX_VOICES.map((voice) => <option key={voice} value={voice} />)}
+                </datalist>
+              </div>
+            </>
+          )}
 
           <div style={{ fontSize: 11, opacity: 0.45, lineHeight: 1.5 }}>
             {cloud.name} · {cloud.desc}。Key 只保存在本机，设置页不会回传明文。

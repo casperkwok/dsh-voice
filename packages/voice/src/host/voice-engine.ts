@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { VoiceSettings } from '../shared/settings.ts'
 import { MiniMaxTts } from './tts/minimax.ts'
+import { VolcTts } from './tts/volc.ts'
+import { DashScopeTts } from './tts/dashscope.ts'
 
 const require = createRequire(import.meta.url)
 
@@ -58,7 +60,7 @@ export class VoiceEngine {
   vadFactory: (() => any) | null = null
   primary: TtsHandle | null = null
   latin: TtsHandle | null = null
-  cloud: MiniMaxTts | null = null
+  cloud: MiniMaxTts | VolcTts | DashScopeTts | null = null
   thinkingCue: { samples: Float32Array; sampleRate: number } | null = null
   error: string | null = null
 
@@ -150,11 +152,19 @@ export class VoiceEngine {
     this.thinkingCue = null
 
     if (this.settings.ttsMode === 'cloud') {
-      if (this.settings.cloudProvider !== 'minimax') {
-        throw new Error(`cloud TTS provider "${this.settings.cloudProvider}" 尚未接入`)
+      if (this.settings.cloudProvider === 'minimax') {
+        this.cloud = new MiniMaxTts(this.settings)
+        return
       }
-      this.cloud = new MiniMaxTts(this.settings)
-      return
+      if (this.settings.cloudProvider === 'volc') {
+        this.cloud = new VolcTts(this.settings)
+        return
+      }
+      if (this.settings.cloudProvider === 'dashscope') {
+        this.cloud = new DashScopeTts(this.settings)
+        return
+      }
+      throw new Error(`cloud TTS provider "${this.settings.cloudProvider}" 尚未接入`)
     }
 
     switch (this.settings.ttsProvider) {

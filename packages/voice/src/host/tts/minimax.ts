@@ -1,4 +1,4 @@
-import type { VoiceSettings } from '../../shared/settings.ts'
+import { cloudProfile, type VoiceSettings } from '../../shared/settings.ts'
 
 export interface CloudAudioChunk {
   samples: Float32Array
@@ -16,9 +16,10 @@ export class MiniMaxTts {
   }
 
   private url(): string {
-    const base = (this.settings.cloudEndpoint || 'https://api.minimax.io').replace(/\/+$/, '')
+    const p = cloudProfile(this.settings)
+    const base = (p.endpoint || 'https://api.minimax.io').replace(/\/+$/, '')
     const url = new URL(base.endsWith('/v1/t2a_v2') ? base : `${base}/v1/t2a_v2`)
-    if (this.settings.cloudGroupId) url.searchParams.set('GroupId', this.settings.cloudGroupId)
+    if (p.groupId) url.searchParams.set('GroupId', p.groupId)
     return url.toString()
   }
 
@@ -27,9 +28,10 @@ export class MiniMaxTts {
     onChunk: (chunk: CloudAudioChunk) => void,
     shouldContinue: () => boolean,
   ): Promise<boolean> {
-    const key = this.settings.cloudApiKey
+    const p = cloudProfile(this.settings)
+    const key = p.apiKey
     if (!key) throw new Error('MiniMax API Key 未配置')
-    if (!this.settings.cloudGroupId) throw new Error('MiniMax Group ID 未配置')
+    if (!p.groupId) throw new Error('MiniMax Group ID 未配置')
     const res = await fetch(this.url(), {
       method: 'POST',
       headers: {
@@ -37,13 +39,13 @@ export class MiniMaxTts {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: this.settings.cloudModel || 'speech-02-hd',
+        model: p.model || 'speech-02-hd',
         text,
         stream: true,
         stream_options: { exclude_aggregated_audio: true },
         voice_setting: {
-          voice_id: this.settings.cloudVoice || 'female-shaonv',
-          speed: this.settings.cloudSpeed || 1,
+          voice_id: p.voice || 'female-shaonv',
+          speed: p.speed || 1,
           vol: 1,
           pitch: 0,
         },

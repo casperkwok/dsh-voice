@@ -39,11 +39,17 @@ describe('MiniMaxTts', () => {
       ...VOICE_DEFAULTS,
       ttsMode: 'cloud',
       cloudProvider: 'minimax',
-      cloudApiKey: 'test-key',
-      cloudGroupId: 'group-1',
-      cloudEndpoint: `http://127.0.0.1:${port}`,
-      cloudVoice: 'female-shaonv',
-      cloudModel: 'speech-02-hd',
+      cloudProfiles: {
+        ...VOICE_DEFAULTS.cloudProfiles,
+        minimax: {
+          ...VOICE_DEFAULTS.cloudProfiles.minimax,
+          apiKey: 'test-key',
+          groupId: 'group-1',
+          endpoint: `http://127.0.0.1:${port}`,
+          voice: 'female-shaonv',
+          model: 'speech-02-hd',
+        },
+      },
     }
     const chunks: Float32Array[] = []
     const tts = new MiniMaxTts(settings)

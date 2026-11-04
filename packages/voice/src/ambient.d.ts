@@ -28,8 +28,16 @@ declare module 'ws' {
   export class WebSocket {
     static readonly OPEN: number
     readyState: number
+    constructor(
+      url: string,
+      options?: {
+        headers?: Record<string, string>
+        maxPayload?: number
+      },
+    )
     send(data: string | Buffer | ArrayBuffer): void
     close(): void
+    on(event: 'open', listener: () => void): void
     on(event: 'message', listener: (data: Buffer, isBinary: boolean) => void): void
     on(event: 'close', listener: () => void): void
     on(event: 'error', listener: (err: Error) => void): void
