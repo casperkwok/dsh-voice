@@ -1,16 +1,19 @@
 export class Playback {
   private readonly ctx: AudioContext
+  private readonly onLevel?: (level: number) => void
   private sources: AudioBufferSourceNode[] = []
   private nextPlayAt = 0
 
-  constructor(ctx: AudioContext) {
+  constructor(ctx: AudioContext, onLevel?: (level: number) => void) {
     this.ctx = ctx
+    this.onLevel = onLevel
   }
 
   play(base64: string, sampleRate: number): void {
     if (!base64 || !sampleRate) return
     const samples = base64ToFloat32(base64)
     if (!samples.length) return
+    this.onLevel?.(Math.min(1, rms(samples) * 5))
     const buffer = this.ctx.createBuffer(1, samples.length, sampleRate)
     buffer.getChannelData(0).set(samples)
     const source = this.ctx.createBufferSource()
@@ -22,6 +25,7 @@ export class Playback {
     this.sources.push(source)
     source.onended = () => {
       this.sources = this.sources.filter((item) => item !== source)
+      if (this.sources.length === 0) this.onLevel?.(0)
     }
   }
 
@@ -35,7 +39,14 @@ export class Playback {
     }
     this.sources = []
     this.nextPlayAt = 0
+    this.onLevel?.(0)
   }
+}
+
+function rms(samples: Float32Array): number {
+  let sum = 0
+  for (let i = 0; i < samples.length; i += 1) sum += samples[i]! * samples[i]!
+  return Math.sqrt(sum / samples.length)
 }
 
 function base64ToFloat32(base64: string): Float32Array {

@@ -50,13 +50,14 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement | nul
       error: null,
       sessionId: null,
       muted: false,
+      level: 0,
     })
   }
 
   const toggleMute = (): void => {
     if (!ui.active) return
     mutedRef.current = !mutedRef.current
-    setVoiceState({ muted: mutedRef.current })
+    setVoiceState({ muted: mutedRef.current, level: mutedRef.current ? 0 : ui.level })
   }
 
   useEffect(() => stop, [])
@@ -87,12 +88,13 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement | nul
       caption: '',
       error: null,
       muted: false,
+      level: 0,
     })
 
     try {
       const ctx = new AudioContext({ latencyHint: 'interactive' })
       ctxRef.current = ctx
-      const playback = new Playback(ctx)
+      const playback = new Playback(ctx, (level) => setVoiceState({ level }))
       playbackRef.current = playback
 
       const ws = new WebSocket(
@@ -109,7 +111,11 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement | nul
           return
         }
         if (message.type === 'status') {
-          setVoiceState({ status: message.state, sessionId: message.sessionId ?? sessionId })
+          setVoiceState({
+            status: message.state,
+            sessionId: message.sessionId ?? sessionId,
+            ...(message.state === 'listening' ? {} : { level: 0 }),
+          })
         } else if (message.type === 'partial') {
           setVoiceState({ partial: message.text })
         } else if (message.type === 'final') {
@@ -134,8 +140,20 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement | nul
       })
       await opened
       ws.send(JSON.stringify({ type: 'start', sessionId }))
+      let lastLevelAt = 0
       micRef.current = await startMic(ctx, (frame) => {
         if (mutedRef.current) return
+        const pcm = new Int16Array(frame)
+        let sum = 0
+        for (let i = 0; i < pcm.length; i += 1) {
+          const value = pcm[i]! / 32768
+          sum += value * value
+        }
+        const now = performance.now()
+        if (now - lastLevelAt > 70) {
+          lastLevelAt = now
+          setVoiceState({ level: Math.min(1, Math.sqrt(sum / pcm.length) * 6) })
+        }
         if (ws.readyState === WebSocket.OPEN) ws.send(frame)
       })
       setBusy(false)
