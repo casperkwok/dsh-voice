@@ -278,7 +278,13 @@ export function SettingsCard(): ReactElement {
           <button type="button" data-active={!local} onClick={() => setTab('cloud')}>云端模型</button>
         </div>
         <span style={{ fontSize: 11, opacity: 0.5 }}>
-          {ready ? `当前：${effective}` : '模型未就绪'}
+          {ready
+            ? `当前：${effective}`
+            : models
+              ? models.localReady
+                ? '模型已下载，首次说话时加载'
+                : '本地模型待下载'
+              : '检查中…'}
         </span>
       </div>
 
