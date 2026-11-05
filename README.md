@@ -187,6 +187,7 @@ packages/voice/
 - [ADR](docs/adr/)
 - [延迟实测](docs/qa/latency.md)
 - [设备矩阵（未完成）](docs/qa/device-matrix.md)
+- [插件市场收录说明](docs/marketplace.md)
 
 ## 常见问题
 
