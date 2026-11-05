@@ -13,7 +13,7 @@ export interface VoiceUiState {
   muted: boolean
   level: number
   approval: { toolName: string; reason?: string; prompt: string } | null
-  model: { label: string; percent: number; done: boolean } | null
+  model: { label: string; percent: number; done: boolean; source?: string } | null
 }
 
 const initial: VoiceUiState = {

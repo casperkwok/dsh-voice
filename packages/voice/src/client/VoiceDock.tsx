@@ -14,7 +14,7 @@ export function VoiceDock({ sessionId }: VoiceDockProps): ReactElement | null {
 
   const downloading =
     ui.model && !ui.model.done
-      ? `${ui.model.label}${ui.model.percent > 0 ? ` ${ui.model.percent}%` : '…'}`
+      ? `${ui.model.label}${ui.model.source ? ` · ${ui.model.source === 'modelscope' ? '魔搭' : ui.model.source === 'huggingface' ? 'HF' : 'GitHub'}` : ''}${ui.model.percent > 0 ? ` ${ui.model.percent}%` : '…'}`
       : ''
   const caption =
     ui.approval?.prompt ??

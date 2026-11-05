@@ -63,13 +63,13 @@ node scripts/install-models.mjs --with-matcha   # 追加 Matcha
 node scripts/install-models.mjs --with-vits     # 追加 VITS
 ```
 
-国内网络访问 Hugging Face 不稳定时：
+默认从魔搭（ModelScope）下载，失败自动回退 Hugging Face / GitHub Releases。想强制优先 Hugging Face：
 
 ```bash
-HF_ENDPOINT=https://hf-mirror.com node scripts/install-models.mjs
+DSH_VOICE_MODEL_SOURCE=huggingface node scripts/install-models.mjs
 ```
 
-自动下载同样读取 `HF_ENDPOINT`。
+自动下载读取同一组环境变量。下载完成后按仓库记录的 SHA256 校验；魔搭上的 ASR、Matcha、VITS、VAD 与当前模型逐字节一致，Kokoro 使用 `finchxu/kokoro-multi-lang-v1_1` 并通过本地合成验证。
 
 ### 模型目录
 
@@ -122,7 +122,8 @@ DSH 触发 `approval/request` 时，若当前有活跃语音会话，插件会�
 - API Key 存在 `~/.dsh-voice/settings.json`（0600），不在仓库内，也不会被设置接口明文返回。
 - `DSH_VOICE_DEBUG=1` 会在本地终端打印端点判断和文本，调试完请关闭。
 - 仓库提交前跑 `pnpm check:secrets`；CI 也会跑。`.env`、`.models/`、`lib/` 已在 `.gitignore` 排除。
-- 当前没有 npm 发布、没有 Docker 镜像；安装脚本只从 Hugging Face / GitHub Releases 下载模型。
+- 当前没有 npm 发布、没有 Docker 镜像；模型从魔搭下载，失败回退 Hugging Face / GitHub Releases。
+- 下载完成后按 SHA256 校验；已经存在的本地文件不重复计算哈希。
 
 ## 设置
 
@@ -171,7 +172,7 @@ packages/voice/
 
 ## 常见问题
 
-**模型下载失败，HTTP 403 / 超时。** 先设 `HF_ENDPOINT=https://hf-mirror.com` 重试；仍失败就手动下载到模型目录。`.part` 文件会保留，重试会从断点继续。
+**模型下载失败，HTTP 403 / 超时。** 默认走魔搭；如果魔搭也不通，设 `DSH_VOICE_MODEL_SOURCE=huggingface` 或配置代理。`.part` 文件会保留，重试会从断点继续。
 
 **`sherpa-onnx-node` 加载失败。** 确认 Node 版本 ≥22.12，并在仓库根目录重新 `pnpm install`。原生包按平台分发，目前只验证了 macOS。
 

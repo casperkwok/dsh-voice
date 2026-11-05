@@ -357,7 +357,7 @@ export function SettingsCard(): ReactElement {
               </button>
             </div>
             <span style={{ fontSize: 10.5, opacity: 0.4, lineHeight: 1.5 }}>
-              缺失时首次说话会自动下载（约 0.5–0.8GB）；国内网络可设 HF_ENDPOINT=https://hf-mirror.com。
+              缺失时首次说话会自动下载（约 0.5–0.8GB）；默认走魔搭，失败回退 HF。
             </span>
           </div>
         </>

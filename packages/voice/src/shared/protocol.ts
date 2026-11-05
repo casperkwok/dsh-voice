@@ -74,6 +74,7 @@ export interface VoiceModelProgressFrame {
   phase: 'asr' | 'vad' | 'tts'
   label: string
   file: string
+  source?: 'modelscope' | 'huggingface' | 'github'
   received: number
   total: number
   percent: number

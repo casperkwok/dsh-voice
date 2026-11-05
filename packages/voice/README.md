@@ -48,10 +48,10 @@ dsh plugin --profile web add ./packages/voice
 node scripts/install-models.mjs                 # ASR + VAD + Kokoro fp32
 node scripts/install-models.mjs --with-matcha   # 追加 Matcha
 node scripts/install-models.mjs --with-vits     # 追加 VITS
-HF_ENDPOINT=https://hf-mirror.com node scripts/install-models.mjs
+DSH_VOICE_MODEL_SOURCE=huggingface node scripts/install-models.mjs
 ```
 
-自动下载同样读取 `HF_ENDPOINT`。
+默认从魔搭（ModelScope）下载，失败回退 Hugging Face / GitHub Releases。自动下载读取同一组环境变量，并在下载完成后校验 SHA256。
 
 ## 使用
 
@@ -109,7 +109,9 @@ DSH 触发 `approval/request` 时，如果当前有活跃语音会话：
 | `DSH_VOICE_TTS_SID` | `47` | Kokoro 音色，45–48 女声，49–52 男声 |
 | `DSH_VOICE_TTS_THREADS` | `4` | TTS 推理线程数 |
 | `DSH_VOICE_SILENCE_MS` | `900` | VAD 端点静音阈值 |
-| `HF_ENDPOINT` | `https://huggingface.co` | 模型下载源，国内可设 `https://hf-mirror.com` |
+| `DSH_VOICE_MODEL_SOURCE` | `auto` | 默认优先魔搭；设为 `huggingface` 则优先 HF |
+| `MODELSCOPE_ENDPOINT` | `https://modelscope.cn` | 魔搭镜像地址 |
+| `HF_ENDPOINT` | `https://huggingface.co` | Hugging Face 回退地址 |
 | `DSH_VOICE_DEBUG` | 空 | 设为 `1` 打印端点判断与文本；调试完关闭 |
 
 ## 隐私
@@ -118,6 +120,7 @@ DSH 触发 `approval/request` 时，如果当前有活跃语音会话：
 - 本地 ASR/TTS 不把音频或文本发给第三方。
 - 云端 TTS 只发送待朗读文本到选定 provider。
 - API Key 不写入仓库、不返回明文、不写日志。
+- 模型下载完成后按 SHA256 校验；已有文件不重复计算。
 - 提交前跑 `pnpm check:secrets`，CI 也会跑。
 
 ## 当前范围

@@ -148,6 +148,7 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement | nul
               label: message.label,
               percent: Number(message.percent) || 0,
               done: Boolean(message.done),
+              source: message.source,
             },
           })
         } else if (message.type === 'error') {
