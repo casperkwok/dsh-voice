@@ -12,10 +12,14 @@ export function VoiceDock({ sessionId }: VoiceDockProps): ReactElement | null {
   if (!ui.active) return null
   if (sessionId && ui.sessionId && sessionId !== ui.sessionId) return null
 
+  const downloading =
+    ui.model && !ui.model.done
+      ? `${ui.model.label}${ui.model.percent > 0 ? ` ${ui.model.percent}%` : '…'}`
+      : ''
   const caption =
     ui.approval?.prompt ??
     ui.error ??
-    (ui.status === 'speaking' ? ui.caption : ui.status === 'listening' ? ui.partial : '')
+    (downloading || (ui.status === 'speaking' ? ui.caption : ui.status === 'listening' ? ui.partial : ''))
 
   return (
     <div

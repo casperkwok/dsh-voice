@@ -11,6 +11,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { VoiceEngine } from './host/voice-engine.ts'
 import { VoiceSession } from './host/voice-session.ts'
+import { modelStatus as inspectModels } from './host/models.ts'
 import { loadSettings, saveSettings, settingsPath } from './host/settings-store.ts'
 import { publicSettings, type VoiceSettings } from './shared/settings.ts'
 
@@ -44,7 +45,11 @@ function encodeWav(samples: Float32Array, sampleRate: number): Buffer {
 export function apply(ctx: Context): void {
   const c = ctx as any
   let currentSettings: VoiceSettings = loadSettings()
+  const clients = new Set<(frame: unknown) => void>()
   const engine = new VoiceEngine(currentSettings)
+  engine.setProgressListener((progress) => {
+    for (const send of clients) send({ type: 'model-progress', ...progress })
+  })
   const sessionsByAgent = new Map<string, VoiceSession>()
   const wss = new WebSocketServer({ noServer: true })
 
@@ -162,6 +167,47 @@ export function apply(ctx: Context): void {
   c.effect(() =>
     c.webServer.register({
       kind: 'exact',
+      path: `${BASE_PATH}/models`,
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        const localRequested = new URL(req.url ?? '', 'http://localhost').searchParams.get('local') === '1'
+        if (req.method === 'POST') {
+          // Start the download in the background; the settings page polls this
+          // route and an active voice session receives progress over its socket.
+          const job = localRequested ? engine.installLocalModels() : engine.init()
+          void job.catch((err) => {
+            engine.error = err instanceof Error ? err.message : String(err)
+            console.warn(`[dsh-voice] model install failed: ${engine.error}`)
+          })
+          const status = engine.modelStatus()
+          json(res, 202, {
+            ok: true,
+            ...status,
+            modelsReady: status.ready,
+            progress: engine.modelProgress,
+          })
+          return
+        }
+        const status = engine.modelStatus()
+        const local = inspectModels({ ...currentSettings, ttsMode: 'local' }, engine.modelsDirectory)
+        json(res, 200, {
+          ok: true,
+          ...status,
+          modelsReady: status.ready,
+          localReady: local.ready,
+          localMissing: local.missing,
+          localTtsModel: local.ttsModel,
+          ready: engine.ready,
+          error: engine.error,
+          progress: engine.modelProgress,
+          provider: engine.provider,
+        })
+      },
+    }),
+  )
+
+  c.effect(() =>
+    c.webServer.register({
+      kind: 'exact',
       path: `${BASE_PATH}/preview`,
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         if (req.method !== 'POST') {
@@ -204,6 +250,7 @@ export function apply(ctx: Context): void {
     const send = (frame: unknown): void => {
       if (ws.readyState === 1) ws.send(JSON.stringify(frame))
     }
+    clients.add(send)
 
     ws.on('message', (data: Buffer, isBinary: boolean) => {
       if (!isBinary) {
@@ -235,14 +282,25 @@ export function apply(ctx: Context): void {
             frameSamples: 320,
           })
           send({ type: 'status', state: 'listening', sessionId })
-          void engine.init().catch((err) => {
-            engine.error = err instanceof Error ? err.message : String(err)
-            send({
-              type: 'error',
-              code: 'E_MODELS_UNAVAILABLE',
-              message: `本地语音模型不可用：${engine.error}`,
+          void engine
+            .init()
+            .then(() => {
+              send({
+                type: 'config',
+                provider: engine.provider,
+                sampleRate: engine.sampleRate,
+                inputSampleRate: 16000,
+                frameSamples: 320,
+              })
             })
-          })
+            .catch((err) => {
+              engine.error = err instanceof Error ? err.message : String(err)
+              send({
+                type: 'error',
+                code: 'E_MODELS_UNAVAILABLE',
+                message: `语音模型不可用：${engine.error}`,
+              })
+            })
         }
         if (message.type === 'stop') {
           session?.destroy()
@@ -262,6 +320,7 @@ export function apply(ctx: Context): void {
     })
 
     ws.on('close', () => {
+      clients.delete(send)
       session?.destroy()
       if (sessionId && sessionsByAgent.get(sessionId) === session) {
         sessionsByAgent.delete(sessionId)
@@ -318,8 +377,4 @@ export function apply(ctx: Context): void {
     sessionsByAgent.clear()
   })
 
-  void engine.init().catch((err) => {
-    engine.error = err instanceof Error ? err.message : String(err)
-    console.warn(`[dsh-voice] model init failed: ${engine.error}`)
-  })
 }

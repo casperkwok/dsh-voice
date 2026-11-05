@@ -14,6 +14,19 @@ interface SettingsResponse {
   ready?: boolean
 }
 
+interface ModelInfo {
+  modelsDir: string
+  ready: boolean
+  modelsReady?: boolean
+  localReady?: boolean
+  localMissing?: string[]
+  localTtsModel?: string
+  missing: string[]
+  ttsModel: string
+  error: string | null
+  progress: { label: string; percent: number; done: boolean } | null
+}
+
 const CLOUD_PROVIDERS: {
   id: CloudTtsProvider
   name: string
@@ -106,7 +119,17 @@ export function SettingsCard(): ReactElement {
   const [tab, setTab] = useState<'local' | 'cloud'>('local')
   const [effective, setEffective] = useState('')
   const [ready, setReady] = useState(false)
+  const [models, setModels] = useState<ModelInfo | null>(null)
+  const [installing, setInstalling] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const pollRef = useRef<number | null>(null)
+
+  const refreshModels = (): void => {
+    fetch('/voice/models')
+      .then((res) => res.json())
+      .then((data: ModelInfo) => setModels(data))
+      .catch(() => {})
+  }
 
   const load = (): void => {
     fetch('/voice/settings')
@@ -117,11 +140,17 @@ export function SettingsCard(): ReactElement {
         setEffective(data.effectiveProvider ?? '')
         setReady(Boolean(data.ready))
         setTab(data.settings.ttsMode === 'cloud' ? 'cloud' : 'local')
+        refreshModels()
       })
       .catch(() => setStatus('读取设置失败'))
   }
 
-  useEffect(load, [])
+  useEffect(() => {
+    load()
+    return () => {
+      if (pollRef.current !== null) window.clearInterval(pollRef.current)
+    }
+  }, [])
 
   if (!form) {
     return <div style={{ fontSize: 13, opacity: 0.7 }}>{status || '读取设置…'}</div>
@@ -170,7 +199,8 @@ export function SettingsCard(): ReactElement {
       setPath(data.settingsPath)
       setEffective(data.effectiveProvider ?? effective)
       setReady(Boolean(data.ready))
-      setStatus('已保存并生效')
+      setStatus(data.ready ? '已保存并生效' : '已保存，模型待下载')
+      refreshModels()
       return true
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '保存失败')
@@ -201,6 +231,37 @@ export function SettingsCard(): ReactElement {
       setStatus(err instanceof Error ? err.message : '试听失败')
     } finally {
       setTesting(false)
+    }
+  }
+
+  const installModels = async (): Promise<void> => {
+    setInstalling(true)
+    setStatus('正在检查并下载模型…')
+    if (pollRef.current !== null) window.clearInterval(pollRef.current)
+    try {
+      await fetch('/voice/models?local=1', { method: 'POST' })
+      pollRef.current = window.setInterval(() => {
+        fetch('/voice/models')
+          .then((res) => res.json())
+          .then((data: ModelInfo) => {
+            setModels(data)
+            if (data.localReady ?? data.modelsReady) {
+              if (pollRef.current !== null) window.clearInterval(pollRef.current)
+              pollRef.current = null
+              setInstalling(false)
+              setStatus('模型已就绪')
+            } else if (data.error) {
+              if (pollRef.current !== null) window.clearInterval(pollRef.current)
+              pollRef.current = null
+              setInstalling(false)
+              setStatus(`模型下载失败：${data.error}`)
+            }
+          })
+          .catch(() => {})
+      }, 1500)
+    } catch (err) {
+      setInstalling(false)
+      setStatus(err instanceof Error ? err.message : '模型下载失败')
     }
   }
 
@@ -266,6 +327,32 @@ export function SettingsCard(): ReactElement {
           <div className="dshv-field">
             <span className="dshv-label">模型目录（留空自动查找）</span>
             <input className="dshv-input" value={form.modelsDir} placeholder="~/.cache/dsh-voice/models" onChange={(e) => update('modelsDir', e.target.value)} />
+          </div>
+
+          <div className="dshv-field">
+            <span className="dshv-label">本地模型</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, opacity: 0.65 }}>
+                {models
+                  ? (models.localReady ?? models.modelsReady)
+                    ? `已就绪 · ${models.localTtsModel ?? models.ttsModel}`
+                    : models.progress && !models.progress.done
+                      ? `${models.progress.label} ${models.progress.percent}%`
+                      : `缺失 ${(models.localMissing ?? models.missing).length} 个文件`
+                  : '检查中…'}
+              </span>
+              <button
+                type="button"
+                className="dshv-secondary"
+                disabled={installing}
+                onClick={() => void installModels()}
+              >
+                {installing ? '下载中…' : '下载 / 检查'}
+              </button>
+            </div>
+            <span style={{ fontSize: 10.5, opacity: 0.4, lineHeight: 1.5 }}>
+              缺失时首次说话会自动下载（约 0.5–0.8GB）；国内网络可设 HF_ENDPOINT=https://hf-mirror.com。
+            </span>
           </div>
         </>
       ) : (

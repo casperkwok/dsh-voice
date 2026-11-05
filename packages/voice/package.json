@@ -1,6 +1,6 @@
 {
   "name": "@dsh-voice/voice",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "General full-duplex voice plugin for DeepSeek Harness.",
   "type": "module",
   "main": "lib/index.js",
@@ -17,7 +17,7 @@
     "README.md"
   ],
   "engines": {
-    "node": ">=24.9.0",
+    "node": ">=22.12.0",
     "dsh": ">=0.1.5-rc.1 <0.3.0-0"
   },
   "dsh": {
@@ -42,7 +42,8 @@
   "scripts": {
     "build": "node build.mjs",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "prepack": "node build.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.0.5",
@@ -61,5 +62,20 @@
   "dependencies": {
     "sherpa-onnx-node": "2.0.1",
     "ws": "8.22.1"
+  },
+  "license": "MIT",
+  "author": "Casper",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "voice",
+    "tts",
+    "asr",
+    "speech",
+    "full-duplex"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

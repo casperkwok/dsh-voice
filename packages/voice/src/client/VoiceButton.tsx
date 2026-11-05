@@ -52,6 +52,7 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement | nul
       muted: false,
       level: 0,
       approval: null,
+      model: null,
     })
   }
 
@@ -91,6 +92,7 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement | nul
       muted: false,
       level: 0,
       approval: null,
+      model: null,
     })
 
     try {
@@ -140,6 +142,14 @@ export function VoiceButton({ sessionId }: VoiceButtonProps): ReactElement | nul
           setVoiceState({ status: 'listening' })
         } else if (message.type === 'config') {
           setVoiceState({ provider: message.provider })
+        } else if (message.type === 'model-progress') {
+          setVoiceState({
+            model: {
+              label: message.label,
+              percent: Number(message.percent) || 0,
+              done: Boolean(message.done),
+            },
+          })
         } else if (message.type === 'error') {
           setVoiceState({ error: message.message })
         }

@@ -13,6 +13,7 @@ export interface VoiceUiState {
   muted: boolean
   level: number
   approval: { toolName: string; reason?: string; prompt: string } | null
+  model: { label: string; percent: number; done: boolean } | null
 }
 
 const initial: VoiceUiState = {
@@ -27,6 +28,7 @@ const initial: VoiceUiState = {
   muted: false,
   level: 0,
   approval: null,
+  model: null,
 }
 
 let state = initial

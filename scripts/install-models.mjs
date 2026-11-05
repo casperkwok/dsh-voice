@@ -4,8 +4,10 @@
  * ~/.cache/dsh-voice/models).
  *
  * Usage:
- *   node scripts/install-models.mjs
- *   node scripts/install-models.mjs --with-kokoro
+ *   node scripts/install-models.mjs                 # ASR + VAD + Kokoro fp32
+ *   node scripts/install-models.mjs --with-matcha   # also install Matcha
+ *   node scripts/install-models.mjs --with-vits     # also install VITS
+ *   DSH_VOICE_MODELS=... HF_ENDPOINT=https://hf-mirror.com node scripts/install-models.mjs
  */
 import { createWriteStream, existsSync, mkdirSync, renameSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -13,11 +15,13 @@ import { dirname, join } from 'node:path'
 
 const ROOT = process.env.DSH_VOICE_MODELS || join(homedir(), '.cache', 'dsh-voice', 'models')
 const HF = (process.env.HF_ENDPOINT || 'https://huggingface.co').replace(/\/$/, '')
-const withKokoro = process.argv.includes('--with-kokoro')
+const withMatcha = process.argv.includes('--with-matcha')
+const withVits = process.argv.includes('--with-vits')
 
 const ASR_REPO = `${HF}/csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/resolve/main`
 const MATCHA_REPO = `${HF}/csukuangfj/matcha-icefall-zh-en/resolve/main`
-const KOKORO_REPO = `${HF}/csukuangfj/kokoro-int8-multi-lang-v1_1/resolve/main`
+const KOKORO_REPO = `${HF}/csukuangfj/kokoro-multi-lang-v1_1/resolve/main`
+const VITS_REPO = `${HF}/csukuangfj/sherpa-onnx-vits-zh-ll/resolve/main`
 
 async function download(url, dest, label) {
   if (existsSync(dest) && statSync(dest).size > 0) {
@@ -62,23 +66,30 @@ async function main() {
     await download(`${ASR_REPO}/${file}`, join(asr, file), `asr/${file}`)
   }
 
-  const matcha = join(ROOT, 'matcha-icefall-zh-en')
-  for (const file of ['model-steps-3.onnx', 'vocos-16khz-univ.onnx', 'tokens.txt', 'lexicon.txt']) {
-    const url = file === 'vocos-16khz-univ.onnx'
-      ? 'https://github.com/k2-fsa/sherpa-onnx/releases/download/vocoder-models/vocos-16khz-univ.onnx'
-      : `${MATCHA_REPO}/${file}`
-    await download(url, join(matcha, file), `matcha/${file}`)
+  const kokoro = join(ROOT, 'kokoro-multi-lang-v1_1')
+  for (const file of ['model.onnx', 'voices.bin', 'tokens.txt', 'lexicon-us-en.txt', 'lexicon-zh.txt']) {
+    await download(`${KOKORO_REPO}/${file}`, join(kokoro, file), `kokoro/${file}`)
   }
 
-  if (withKokoro) {
-    const kokoro = join(ROOT, 'kokoro-int8-multi-lang-v1_1')
-    for (const file of ['model.int8.onnx', 'voices.bin', 'tokens.txt', 'lexicon-us-en.txt', 'lexicon-zh.txt']) {
-      await download(`${KOKORO_REPO}/${file}`, join(kokoro, file), `kokoro/${file}`)
+  if (withMatcha) {
+    const matcha = join(ROOT, 'matcha-icefall-zh-en')
+    for (const file of ['model-steps-3.onnx', 'vocos-16khz-univ.onnx', 'tokens.txt', 'lexicon.txt']) {
+      const url = file === 'vocos-16khz-univ.onnx'
+        ? 'https://github.com/k2-fsa/sherpa-onnx/releases/download/vocoder-models/vocos-16khz-univ.onnx'
+        : `${MATCHA_REPO}/${file}`
+      await download(url, join(matcha, file), `matcha/${file}`)
+    }
+  }
+
+  if (withVits) {
+    const vits = join(ROOT, 'sherpa-onnx-vits-zh-ll')
+    for (const file of ['model.onnx', 'tokens.txt', 'lexicon.txt', 'date.fst', 'phone.fst', 'number.fst']) {
+      await download(`${VITS_REPO}/${file}`, join(vits, file), `vits/${file}`)
     }
   }
 
   console.log('\n[done] models ready')
-  if (!withKokoro) console.log('Kokoro (English fallback) skipped; rerun with --with-kokoro to add it.')
+  console.log('Optional: --with-matcha / --with-vits. Kokoro fp32 is the default local voice.')
 }
 
 main().catch((err) => {

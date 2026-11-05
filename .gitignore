@@ -3,7 +3,13 @@ lib/
 dist/
 .env
 .env.*
+.envrc
 *.log
+*.pem
+*.key
+*.p12
+*.pfx
+.dsh-voice/
 .DS_Store
 coverage/
 /tmp/

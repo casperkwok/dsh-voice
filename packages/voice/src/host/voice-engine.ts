@@ -1,9 +1,8 @@
 import { createRequire } from 'node:module'
 import { existsSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import type { VoiceSettings } from '../shared/settings.ts'
+import { ensureModels, modelStatus, resolveModelsDir, type ModelProgress, type ModelStatus } from './models.ts'
 import { MiniMaxTts } from './tts/minimax.ts'
 import { VolcTts } from './tts/volc.ts'
 import { DashScopeTts } from './tts/dashscope.ts'
@@ -37,21 +36,6 @@ export interface AudioChunk {
   sampleRate: number
 }
 
-function resolveModelsDir(settings: VoiceSettings): string {
-  if (settings.modelsDir) return settings.modelsDir
-  if (process.env.DSH_VOICE_MODELS) return process.env.DSH_VOICE_MODELS
-  const cache = join(homedir(), '.cache', 'dsh-voice', 'models')
-  if (existsSync(cache)) return cache
-  // Development fallback: walk up from lib/ or src/host/ to the repository .models.
-  let dir = dirname(fileURLToPath(import.meta.url))
-  for (let i = 0; i < 5; i += 1) {
-    const candidate = join(dir, '.models')
-    if (existsSync(candidate)) return candidate
-    dir = dirname(dir)
-  }
-  return cache
-}
-
 export class VoiceEngine {
   private modelsDir: string
   private settings: VoiceSettings
@@ -63,11 +47,29 @@ export class VoiceEngine {
   cloud: MiniMaxTts | VolcTts | DashScopeTts | null = null
   thinkingCue: { samples: Float32Array; sampleRate: number } | null = null
   private thinkingCuePromise: Promise<{ samples: Float32Array; sampleRate: number } | null> | null = null
+  private progress: ModelProgress | null = null
+  private progressListener: ((progress: ModelProgress) => void) | null = null
   error: string | null = null
 
   constructor(settings: VoiceSettings) {
     this.settings = settings
     this.modelsDir = resolveModelsDir(settings)
+  }
+
+  get modelsDirectory(): string {
+    return this.modelsDir
+  }
+
+  get modelProgress(): ModelProgress | null {
+    return this.progress
+  }
+
+  setProgressListener(listener: ((progress: ModelProgress) => void) | null): void {
+    this.progressListener = listener
+  }
+
+  modelStatus(): ModelStatus {
+    return modelStatus(this.settings, this.modelsDir)
   }
 
   get provider(): string {
@@ -84,11 +86,32 @@ export class VoiceEngine {
 
   async init(): Promise<void> {
     if (this.readyPromise) return this.readyPromise
-    this.readyPromise = this.load()
+    this.readyPromise = this.load().catch((err: unknown) => {
+      // A failed download or load must be retryable after the user fixes the
+      // network, the model directory, or the settings.
+      this.readyPromise = null
+      throw err
+    })
     return this.readyPromise
   }
 
+  private emitProgress(progress: ModelProgress): void {
+    this.progress = progress
+    this.progressListener?.(progress)
+  }
+
+  /** Download local ASR/TTS weights without switching away from cloud TTS. */
+  async installLocalModels(): Promise<void> {
+    await ensureModels(this.modelsDir, { ...this.settings, ttsMode: 'local' }, {
+      onProgress: (progress) => this.emitProgress(progress),
+    })
+  }
+
   private async load(): Promise<void> {
+    this.error = null
+    await ensureModels(this.modelsDir, this.settings, {
+      onProgress: (progress) => this.emitProgress(progress),
+    })
     const asrDir = join(
       this.modelsDir,
       'sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20',
@@ -212,10 +235,25 @@ export class VoiceEngine {
   }
 
   async updateSettings(next: VoiceSettings): Promise<void> {
+    const nextDir = resolveModelsDir(next)
+    const modelsChanged = nextDir !== this.modelsDir || next.ttsMode !== this.settings.ttsMode
     this.settings = next
-    this.modelsDir = resolveModelsDir(next)
+    this.modelsDir = nextDir
     this.error = null
-    await this.loadTts()
+    this.progress = null
+    if (modelsChanged) {
+      this.readyPromise = null
+      this.recognizer = null
+      this.vadFactory = null
+    }
+    try {
+      await this.loadTts()
+    } catch (err) {
+      // Keep the settings saved; the next start or preview will download the
+      // missing model and retry instead of making the save look failed.
+      this.readyPromise = null
+      this.error = err instanceof Error ? err.message : String(err)
+    }
   }
 
   /** Cached thinking cue. Cloud providers generate it lazily on first use. */

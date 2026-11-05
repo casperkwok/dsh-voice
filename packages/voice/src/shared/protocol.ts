@@ -69,6 +69,17 @@ export interface VoiceErrorFrame {
   message: string
 }
 
+export interface VoiceModelProgressFrame {
+  type: 'model-progress'
+  phase: 'asr' | 'vad' | 'tts'
+  label: string
+  file: string
+  received: number
+  total: number
+  percent: number
+  done: boolean
+}
+
 export interface VoiceConfigFrame {
   type: 'config'
   provider: string
@@ -87,6 +98,7 @@ export type VoiceServerFrame =
   | VoiceApprovalResolvedFrame
   | VoiceBargeInFrame
   | VoiceMetricsFrame
+  | VoiceModelProgressFrame
   | VoiceErrorFrame
   | VoiceConfigFrame
 
