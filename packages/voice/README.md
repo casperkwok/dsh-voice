@@ -12,6 +12,12 @@ DeepSeek Harness 的通用全双工语音插件。Host 侧运行本地流式 ASR
 dsh plugin --profile web add @dsh-voice/voice
 ```
 
+### 从 GitHub Release（未发布 npm 时）
+
+```bash
+dsh plugin --profile web add https://github.com/casperkwok/dsh-voice/releases/download/v0.1.0/dsh-voice-voice-0.1.0.tgz
+```
+
 ### 从本地源码
 
 ```bash

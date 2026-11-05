@@ -28,7 +28,7 @@ DeepSeek Harness 的通用全双工语音插件：本地流式识别、本地/�
 |---|---|
 | Node.js | ≥ 22.12 |
 | pnpm | 10.x |
-| DeepSeek Harness | `>=0.1.5-rc.1 <0.3.0-0`；当前只在 `0.1.5-rc.1` 实测 |
+| DeepSeek Harness | `>=0.1.5-rc.1 <0.2.0-0`；只在 `0.1.5-rc.1` 实测 |
 | 磁盘 | 本地模型约 0.5–0.8 GB（按所选 TTS 不同） |
 | 麦克风 | 浏览器需允许 `localhost` 使用麦克风 |
 
@@ -46,7 +46,15 @@ dsh plugin --profile web add ./packages/voice
 
 重启 DSH 的 web profile。插件声明在 `packages/voice/package.json` 的 `dsh` 字段里，`dsh plugin add` 会读取 `cordis.patch.yml` 把插件插入当前 profile。
 
-> npm 包尚未发布。发布后可以直接 `dsh plugin --profile web add @dsh-voice/voice`，不需要先克隆仓库。
+### 从 GitHub Release 安装
+
+npm 包尚未发布。v0.1.0 的预构建 tarball 可以直接安装：
+
+```bash
+dsh plugin --profile web add https://github.com/casperkwok/dsh-voice/releases/download/v0.1.0/dsh-voice-voice-0.1.0.tgz
+```
+
+发布后也可以改走 npm：`dsh plugin --profile web add @dsh-voice/voice`。
 
 ## 第一次使用
 
