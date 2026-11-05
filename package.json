@@ -15,5 +15,13 @@
     "check": "pnpm check:secrets && pnpm typecheck && pnpm test"
   },
   "license": "MIT",
-  "author": "Casper"
+  "author": "Casper",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/casperkwok/dsh-voice.git"
+  },
+  "homepage": "https://github.com/casperkwok/dsh-voice#readme",
+  "bugs": {
+    "url": "https://github.com/casperkwok/dsh-voice/issues"
+  }
 }

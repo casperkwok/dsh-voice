@@ -77,5 +77,14 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/casperkwok/dsh-voice.git",
+    "directory": "packages/voice"
+  },
+  "homepage": "https://github.com/casperkwok/dsh-voice#readme",
+  "bugs": {
+    "url": "https://github.com/casperkwok/dsh-voice/issues"
   }
 }

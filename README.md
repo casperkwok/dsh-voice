@@ -1,5 +1,8 @@
 # dsh-voice
 
+[![CI](https://github.com/casperkwok/dsh-voice/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/casperkwok/dsh-voice/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/casperkwok/dsh-voice?color=blue)](https://github.com/casperkwok/dsh-voice/blob/main/LICENSE)
+
 DeepSeek Harness 的通用全双工语音插件：本地流式识别、本地/云端语音合成、开口即打断、语音审批。
 
 **状态：v0.1.0，可用的垂直切片。** macOS 已实测；Linux / Windows 尚未做设备矩阵验证。DSH `0.1.5-rc.1` 已跑通，`0.2.x` 尚未验收。
@@ -25,9 +28,8 @@ DeepSeek Harness 的通用全双工语音插件：本地流式识别、本地/�
 
 ## 安装（从源码）
 
-先把仓库克隆到本地，然后：
-
 ```bash
+git clone https://github.com/casperkwok/dsh-voice.git
 cd dsh-voice
 pnpm install
 pnpm build
