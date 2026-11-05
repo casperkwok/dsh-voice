@@ -14,6 +14,14 @@ DeepSeek Harness 的通用全双工语音插件：本地流式识别、本地/�
 - 语音审批：DSH 弹出授权时，直接说“允许”或“拒绝”
 - 模型按需下载：第一次使用语音时才下载，不在安装插件时静默拉取
 
+## 界面
+
+![dsh-voice 语音光球](assets/dsh-voice-orb.png)
+
+![dsh-voice 本地模型设置](assets/dsh-voice-settings.png)
+
+截图来自本地 DSH 真实界面；为保护本机信息，隐藏了工作区名称和本地设置文件路径。
+
 ## 环境要求
 
 | 项 | 要求 |
