@@ -2,7 +2,7 @@
 
 DeepSeek Harness 的通用全双工语音插件。Host 侧运行本地流式 ASR、Silero VAD、Kokoro / Matcha / VITS 本地 TTS；Client 侧提供输入框麦克风按钮、语音光球、实时字幕、WebAudio 播放队列和语音审批。
 
-**v0.1.0 · macOS 已实测 · Linux / Windows 未验收 · DSH 0.1.5 已跑通 · 0.2.x 未验**
+**v0.1.1 · macOS 已实测 · Linux / Windows 未验收 · DSH 0.1.5 / 0.2.1 / 0.2.2 已跑通**
 
 ## 安装
 
@@ -15,7 +15,7 @@ dsh plugin --profile web add @dsh-voice/voice
 ### 从 GitHub Release（未发布 npm 时）
 
 ```bash
-dsh plugin --profile web add https://github.com/casperkwok/dsh-voice/releases/download/v0.1.0/dsh-voice-voice-0.1.0.tgz
+dsh plugin --profile web add https://github.com/casperkwok/dsh-voice/releases/download/v0.1.1/dsh-voice-voice-0.1.1.tgz
 ```
 
 ### 从本地源码

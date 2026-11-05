@@ -5,7 +5,7 @@
 
 DeepSeek Harness 的通用全双工语音插件：本地流式识别、本地/云端语音合成、开口即打断、语音审批。
 
-**状态：v0.1.0，可用的垂直切片。** macOS 已实测；Linux / Windows 尚未做设备矩阵验证。DSH `0.1.5-rc.1` 已跑通，`0.2.x` 尚未验收。
+**状态：v0.1.1，可用的垂直切片。** macOS 已实测；Linux / Windows 尚未做设备矩阵验证。DSH `0.1.5-rc.1`、`0.2.1-rc.5` 与 `0.2.2-rc.1` 已跑通。
 
 - 流式 ASR：浏览器麦克风 → 本地 zipformer2，边说边出字
 - 本地 TTS：Kokoro fp32 / Matcha / VITS，默认 Kokoro
@@ -28,7 +28,7 @@ DeepSeek Harness 的通用全双工语音插件：本地流式识别、本地/�
 |---|---|
 | Node.js | ≥ 22.12 |
 | pnpm | 10.x |
-| DeepSeek Harness | `>=0.1.5-rc.1 <0.2.0-0`；只在 `0.1.5-rc.1` 实测 |
+| DeepSeek Harness | `>=0.1.5-rc.1 <0.3.0-0`；`0.1.5-rc.1`、`0.2.1-rc.5`、`0.2.2-rc.1` 实测 |
 | 磁盘 | 本地模型约 0.5–0.8 GB（按所选 TTS 不同） |
 | 麦克风 | 浏览器需允许 `localhost` 使用麦克风 |
 
@@ -48,10 +48,10 @@ dsh plugin --profile web add ./packages/voice
 
 ### 从 GitHub Release 安装
 
-npm 包尚未发布。v0.1.0 的预构建 tarball 可以直接安装：
+npm 包尚未发布。v0.1.1 的预构建 tarball 可以直接安装：
 
 ```bash
-dsh plugin --profile web add https://github.com/casperkwok/dsh-voice/releases/download/v0.1.0/dsh-voice-voice-0.1.0.tgz
+dsh plugin --profile web add https://github.com/casperkwok/dsh-voice/releases/download/v0.1.1/dsh-voice-voice-0.1.1.tgz
 ```
 
 发布后也可以改走 npm：`dsh plugin --profile web add @dsh-voice/voice`。
