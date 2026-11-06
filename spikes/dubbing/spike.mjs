@@ -102,6 +102,9 @@ function parseScript(text, options = {}) {
     const roleName = (match ? match[1] : '旁白').replace(/\*\*/g, '').trim()
     if (roleName.includes('片名')) continue
     let speech = (match ? match[2] : line).replace(/\*\*/g, '').trim()
+    // Screenplay stage directions: *（从里屋）* or *(beat)*, including inline.
+    speech = speech.replace(/\*[（(][^）)]*[）)]\*/g, '').trim()
+    if (!/[\p{L}\p{N}]/u.test(speech)) continue
     let emotion = ''
     const parenthetical = speech.match(/^[（(]([^）)]{1,20})[）)]\s*/)
     if (parenthetical) {
@@ -156,7 +159,7 @@ function safeName(value, index) {
   return `${String(index + 1).padStart(2, '0')}-${value.replace(/[\\/:*?"<>|]/g, '_')}`
 }
 
-function synthesize(tts, scriptPath) {
+function loadSegments(scriptPath) {
   const text = readFileSync(scriptPath, 'utf8')
   const dialogueOnly = process.argv.includes('--dialogue-only')
   const screenplay = process.argv.includes('--screenplay')
@@ -167,6 +170,11 @@ function synthesize(tts, scriptPath) {
   const usedRoles = new Set(segments.map((segment) => segment.roleName))
   const roles = parsed.roles.filter((role) => usedRoles.has(role.name))
   if (!segments.length) throw new Error(`no segments in ${scriptPath}`)
+  return { segments, roles }
+}
+
+function synthesize(tts, scriptPath) {
+  const { segments, roles } = loadSegments(scriptPath)
   const roleMap = new Map(roles.map((role) => [role.name, role]))
   const outDir = join(OUT_ROOT, scriptPath.split('/').pop().replace(/\.(txt|md)$/, ''))
   rmSync(outDir, { recursive: true, force: true })
@@ -239,8 +247,10 @@ function synthesize(tts, scriptPath) {
 
   const mixPath = join(outDir, 'mix.wav')
   writeFileSync(mixPath, encodeWav(mix, SAMPLE_RATE))
-  for (const [roleName, samples] of tracks) {
-    writeFileSync(join(outDir, 'tracks', `${safeName(roleName, 0).replace(/^01-/, '')}.wav`), encodeWav(samples, SAMPLE_RATE))
+  if (!process.argv.includes('--no-tracks')) {
+    for (const [roleName, samples] of tracks) {
+      writeFileSync(join(outDir, 'tracks', `${safeName(roleName, 0).replace(/^01-/, '')}.wav`), encodeWav(samples, SAMPLE_RATE))
+    }
   }
 
   const srt = results
@@ -275,6 +285,14 @@ function scriptPaths() {
     .filter((file) => file.endsWith('.txt'))
     .sort()
     .map((file) => join(dir, file))
+}
+
+if (process.argv.includes('--dry-run')) {
+  for (const script of scriptPaths()) {
+    const { segments, roles } = loadSegments(script)
+    console.log(`${script.split('/').pop()}: ${segments.length} segments, ${segments.reduce((sum, item) => sum + item.text.length, 0)} chars, roles: ${roles.map((role) => role.name).join(' / ')}`)
+  }
+  process.exit(0)
 }
 
 const tts = loadTts()

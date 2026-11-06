@@ -38,6 +38,7 @@ node spikes/dubbing/spike.mjs --script <剧本>.md --screenplay --max-segments 1
 | short-drama | 10 | 28.1s | 9.5s | 0.34 |
 | voiceover | 10 | 47.1s | 19.6s | 0.42 |
 | course | 11 | 52.1s | 20.7s | 0.40 |
+| 小满第一幕（私有剧本，本地未提交） | 80 | 213.1s | 82.0s | 0.38 |
 
 结论：
 
