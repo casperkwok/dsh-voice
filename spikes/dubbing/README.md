@@ -13,7 +13,12 @@
 ```bash
 node spikes/dubbing/spike.mjs
 node spikes/dubbing/spike.mjs --script spikes/dubbing/scripts/short-drama.txt
+
+# Markdown 剧本：只取 **角色**：台词，忽略动作行；限制段落数
+node spikes/dubbing/spike.mjs --script <剧本>.md --screenplay --max-segments 12
 ```
+
+`--screenplay` 用于 `**角色**：台词` 格式的剧本；`--dialogue-only` 用于普通 `角色：台词` 文本。私有剧本只在本机跑，产物在忽略目录 `spikes/dubbing/out/`，不会提交。
 
 模型从 `DSH_VOICE_MODELS` 或仓库 `.models/kokoro-multi-lang-v1_1` 读取。
 

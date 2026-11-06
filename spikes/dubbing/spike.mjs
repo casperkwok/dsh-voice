@@ -44,7 +44,12 @@ const sherpa = loadSherpa()
 const ROLE_VOICES = {
   林夏: 47,
   陈默: 49,
-  小满: 48,
+  小满: 47,
+  小雨: 48,
+  秀兰婆: 45,
+  周迟: 49,
+  彭伟: 50,
+  '画外（拍客）': 46,
   旁白: 45,
   主持人: 47,
   讲师: 50,
@@ -76,7 +81,7 @@ function loadTts() {
   })
 }
 
-function parseScript(text) {
+function parseScript(text, options = {}) {
   const segments = []
   const roleNames = []
   let scene = 1
@@ -87,9 +92,16 @@ function parseScript(text) {
       scene += 1
       continue
     }
-    const match = line.match(/^([^：:]{1,16})[：:]\s*(.+)$/)
-    const roleName = match ? match[1].trim() : '旁白'
-    let speech = match ? match[2].trim() : line
+    const screenplay = line.match(/^\*\*([^*]{1,24})\*\*[：:]\s*(.+)$/)
+    const generic = line.match(/^([^：:]{1,16})[：:]\s*(.+)$/)
+    const match = options.screenplay ? screenplay : generic
+    if (!match) {
+      if (options.dialogueOnly || options.screenplay) continue
+      if (line.includes('：') || line.includes(':')) continue
+    }
+    const roleName = (match ? match[1] : '旁白').replace(/\*\*/g, '').trim()
+    if (roleName.includes('片名')) continue
+    let speech = (match ? match[2] : line).replace(/\*\*/g, '').trim()
     let emotion = ''
     const parenthetical = speech.match(/^[（(]([^）)]{1,20})[）)]\s*/)
     if (parenthetical) {
@@ -146,10 +158,17 @@ function safeName(value, index) {
 
 function synthesize(tts, scriptPath) {
   const text = readFileSync(scriptPath, 'utf8')
-  const { segments, roles } = parseScript(text)
+  const dialogueOnly = process.argv.includes('--dialogue-only')
+  const screenplay = process.argv.includes('--screenplay')
+  const maxIndex = process.argv.indexOf('--max-segments')
+  const maxSegments = maxIndex >= 0 ? Number(process.argv[maxIndex + 1]) : Infinity
+  const parsed = parseScript(text, { dialogueOnly, screenplay })
+  const segments = parsed.segments.slice(0, Number.isFinite(maxSegments) ? maxSegments : undefined)
+  const usedRoles = new Set(segments.map((segment) => segment.roleName))
+  const roles = parsed.roles.filter((role) => usedRoles.has(role.name))
   if (!segments.length) throw new Error(`no segments in ${scriptPath}`)
   const roleMap = new Map(roles.map((role) => [role.name, role]))
-  const outDir = join(OUT_ROOT, safeName(scriptPath.split('/').pop().replace(/\.txt$/, ''), 0).replace(/^01-/, ''))
+  const outDir = join(OUT_ROOT, scriptPath.split('/').pop().replace(/\.(txt|md)$/, ''))
   rmSync(outDir, { recursive: true, force: true })
   mkdirSync(join(outDir, 'tracks'), { recursive: true })
 
@@ -159,8 +178,9 @@ function synthesize(tts, scriptPath) {
   for (const [index, segment] of segments.entries()) {
     const role = roleMap.get(segment.roleName)
     const t0 = performance.now()
+    const spokenText = segment.text.replace(/——+/g, '，').replace(/……+/g, '…')
     const audio = tts.generate({
-      text: segment.text,
+      text: spokenText,
       generationConfig: new sherpa.GenerationConfig({
         sid: role.sid,
         speed: role.speed,
