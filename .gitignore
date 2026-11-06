@@ -16,3 +16,4 @@ coverage/
 .models/
 spikes/**/*.wav
 !spikes/phase0/test-input.wav
+spikes/dubbing/out/
